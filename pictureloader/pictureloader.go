@@ -15,6 +15,7 @@ import (
 func readFromFile(filePath string) (res []string) {
 
 	file, err := os.Open(filePath)
+	defer file.Close()
 
 	if err != nil {
 		fmt.Print("Opening file error: ")
@@ -35,6 +36,9 @@ func readFromFile(filePath string) (res []string) {
 	return
 }
 
+//Download files from different sources in parallel routines.
+//urls - array with src adresses
+//routineAmount - routines amount
 func downloadFiles(urls []string, routineAmount int) {
 
 	var wg sync.WaitGroup
@@ -45,6 +49,10 @@ func downloadFiles(urls []string, routineAmount int) {
 	wg.Wait()
 }
 
+//Download singe file.
+//url - src download from
+//tokens - chan to control amount of goroutines
+// wg - to sure that all routines has executed
 func downloadFile(url string, tokens chan struct{}, wg *sync.WaitGroup) {
 	wg.Add(1)
 	defer wg.Done()
@@ -66,7 +74,6 @@ func downloadFile(url string, tokens chan struct{}, wg *sync.WaitGroup) {
 	}
 
 	_, err = io.Copy(destFile, resp.Body)
-
 	if err != nil {
 		panic(err)
 	}
@@ -75,6 +82,7 @@ func downloadFile(url string, tokens chan struct{}, wg *sync.WaitGroup) {
 
 }
 
+//Return the file name from url(last part in url, after last "/")
 func getFileNameFromURL(url string) string {
 
 	res := strings.Split(url, "/")
@@ -83,6 +91,6 @@ func getFileNameFromURL(url string) string {
 
 func main() {
 	var urls []string
-	urls = append(urls[0:], readFromFile("/home/legion/GoProj/pictureloader/urls.txt")...)
+	urls = append(urls[0:], readFromFile("urls.txt")...)
 	downloadFiles(urls, 20)
 }
