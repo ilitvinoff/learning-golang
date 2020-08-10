@@ -11,6 +11,11 @@ import (
 	"sync"
 )
 
+const (
+	tempPath       = "temp/"
+	tempFolderName = "temp"
+)
+
 //Read file's content. Each line - is url. Return slice of urls.
 func readFromFile(filePath string) (res []string) {
 
@@ -39,13 +44,13 @@ func readFromFile(filePath string) (res []string) {
 //Download files from different sources in parallel routines.
 //urls - array with src adresses
 //routineAmount - routines amount
-func downloadFiles(urls []string, routineAmount int) {
+func downloadFiles(urls []string, routineAmount int, wg *sync.WaitGroup) {
 
-	var wg sync.WaitGroup
 	tokens := make(chan struct{}, routineAmount)
 	for _, url := range urls {
-		go downloadFile(url, tokens, &wg)
+		go downloadFile(url, tokens, wg)
 	}
+
 	wg.Wait()
 }
 
@@ -60,18 +65,20 @@ func downloadFile(url string, tokens chan struct{}, wg *sync.WaitGroup) {
 	tokens <- struct{}{}
 
 	resp, err := http.Get(url)
+
+	if err != nil {
+		panic(err)
+	}
 	defer resp.Body.Close()
 
+	destFile, err := os.Create(tempPath + getFileNameFromURL(url))
+
 	if err != nil {
 		panic(err)
 	}
-
-	destFile, err := os.Create(getFileNameFromURL(url))
 	defer destFile.Close()
 
-	if err != nil {
-		panic(err)
-	}
+	fmt.Println(getFileNameFromURL(url))
 
 	_, err = io.Copy(destFile, resp.Body)
 	if err != nil {
@@ -86,11 +93,23 @@ func downloadFile(url string, tokens chan struct{}, wg *sync.WaitGroup) {
 func getFileNameFromURL(url string) string {
 
 	res := strings.Split(url, "/")
-	return res[len(res)-1]
+	return (res[len(res)-1])
+}
+
+func creatFolder(name string) {
+	if _, err := os.Stat(name); os.IsNotExist(err) {
+		err1 := os.Mkdir(name, 0755)
+		if err1 != nil {
+			panic(err1)
+		}
+	}
 }
 
 func main() {
+	var wg sync.WaitGroup
 	var urls []string
+	creatFolder(tempFolderName)
 	urls = append(urls[0:], readFromFile("urls.txt")...)
-	downloadFiles(urls, 20)
+	fmt.Println(getFileNameFromURL(urls[2]))
+	downloadFiles(urls, 20, &wg)
 }
