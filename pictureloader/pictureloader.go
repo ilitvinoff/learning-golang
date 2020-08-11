@@ -4,16 +4,22 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"image/jpeg"
 	"io"
+	"io/ioutil"
 	"net/http"
 	"os"
 	"strings"
 	"sync"
+
+	"github.com/nfnt/resize"
 )
 
 const (
-	tempPath       = "temp/"
-	tempFolderName = "temp"
+	originalImagesDirPath = "originals/"
+	originalImagesDirName = "originals"
+	iconsDirPath          = "icons/"
+	iconsDirName          = "icons"
 )
 
 //Read file's content. Each line - is url. Return slice of urls.
@@ -44,14 +50,15 @@ func readFromFile(filePath string) (res []string) {
 //Download files from different sources in parallel routines.
 //urls - array with src adresses
 //routineAmount - routines amount
-func downloadFiles(urls []string, routineAmount int, wg *sync.WaitGroup) {
+func downloadFiles(urls []string, routinesAmount int, wg *sync.WaitGroup) {
 
-	tokens := make(chan struct{}, routineAmount)
+	tokens := make(chan struct{}, routinesAmount)
 	for _, url := range urls {
 		go downloadFile(url, tokens, wg)
 	}
 
 	wg.Wait()
+	return
 }
 
 //Download singe file.
@@ -71,20 +78,19 @@ func downloadFile(url string, tokens chan struct{}, wg *sync.WaitGroup) {
 	}
 	defer resp.Body.Close()
 
-	destFile, err := os.Create(tempPath + getFileNameFromURL(url))
+	filePath := originalImagesDirPath + getFileNameFromURL(url)
+
+	destFile, err := os.Create(filePath)
 
 	if err != nil {
 		panic(err)
 	}
 	defer destFile.Close()
 
-	fmt.Println(getFileNameFromURL(url))
-
 	_, err = io.Copy(destFile, resp.Body)
 	if err != nil {
 		panic(err)
 	}
-
 	<-tokens
 
 }
@@ -105,11 +111,63 @@ func creatFolder(name string) {
 	}
 }
 
+func creatIcons(routinesAmount int, wg *sync.WaitGroup) {
+	files, err := ioutil.ReadDir(originalImagesDirName)
+	if err != nil {
+		panic(err)
+	}
+
+	tokens := make(chan struct{}, routinesAmount)
+	for _, file := range files {
+		go creatIcon(file, tokens, wg)
+	}
+	wg.Wait()
+
+}
+
+func creatIcon(fileInfo os.FileInfo, tokens chan struct{}, wg *sync.WaitGroup) {
+	wg.Add(1)
+	defer wg.Done()
+
+	tokens <- struct{}{}
+
+	file, err := os.Open(originalImagesDirPath + fileInfo.Name())
+	if err != nil {
+		panic(err)
+	}
+
+	// decode jpeg into image.Image
+	img, err := jpeg.Decode(file)
+	if err != nil {
+		fmt.Printf("file: %s", file.Name())
+		panic(err)
+	}
+	file.Close()
+
+	// resize to width 1000 using Lanczos resampling
+	// and preserve aspect ratio
+	m := resize.Resize(64, 0, img, resize.Lanczos3)
+
+	dest, err := os.Create(iconsDirPath + fileInfo.Name())
+	if err != nil {
+		panic(err)
+	}
+	defer dest.Close()
+
+	// write new image to file
+	jpeg.Encode(dest, m, nil)
+	fmt.Println(dest.Name())
+	<-tokens
+}
+
 func main() {
 	var wg sync.WaitGroup
 	var urls []string
-	creatFolder(tempFolderName)
+
+	creatFolder(originalImagesDirName)
+	creatFolder(iconsDirName)
 	urls = append(urls[0:], readFromFile("urls.txt")...)
-	fmt.Println(getFileNameFromURL(urls[2]))
-	downloadFiles(urls, 20, &wg)
+	downloadFiles(urls, 15, &wg)
+	creatIcons(4, &wg)
+
 }
