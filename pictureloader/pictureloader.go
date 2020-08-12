@@ -4,22 +4,31 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"image/gif"
 	"image/jpeg"
+	"image/png"
 	"io"
 	"io/ioutil"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 
 	"github.com/nfnt/resize"
 )
 
+var mimeMap = map[string]bool{
+	"image/jpeg": true,
+	"image/png":  true,
+	"image/gif":  true}
+
 const (
-	originalImagesDirPath = "originals/"
-	originalImagesDirName = "originals"
-	iconsDirPath          = "icons/"
-	iconsDirName          = "icons"
+	pathDirOrigImages = "originals/"
+	nameDirOrigImages = "originals"
+	jpegMime          = "image/jpeg"
+	pngMime           = "image/png"
+	gifMime           = "image/gif"
 )
 
 //Read file's content. Each line - is url. Return slice of urls.
@@ -50,7 +59,7 @@ func readFromFile(filePath string) (res []string) {
 //Download files from different sources in parallel routines.
 //urls - array with src adresses
 //routineAmount - routines amount
-func downloadFiles(urls []string, routinesAmount int, wg *sync.WaitGroup) {
+func downloadFiles(urls []string, routinesAmount uint, wg *sync.WaitGroup) {
 
 	tokens := make(chan struct{}, routinesAmount)
 	for _, url := range urls {
@@ -71,32 +80,31 @@ func downloadFile(url string, tokens chan struct{}, wg *sync.WaitGroup) {
 
 	tokens <- struct{}{}
 
+	filePath := pathDirOrigImages + getFileNameFromPath(url)
+
 	resp, err := http.Get(url)
 
 	if err != nil {
-		panic(err)
+		_, err := os.Create(filePath)
+
+		panicErr(err)
+		return
 	}
 	defer resp.Body.Close()
 
-	filePath := originalImagesDirPath + getFileNameFromURL(url)
-
 	destFile, err := os.Create(filePath)
 
-	if err != nil {
-		panic(err)
-	}
+	panicErr(err)
 	defer destFile.Close()
 
 	_, err = io.Copy(destFile, resp.Body)
-	if err != nil {
-		panic(err)
-	}
+	panicErr(err)
 	<-tokens
 
 }
 
 //Return the file name from url(last part in url, after last "/")
-func getFileNameFromURL(url string) string {
+func getFileNameFromPath(url string) string {
 
 	res := strings.Split(url, "/")
 	return (res[len(res)-1])
@@ -111,63 +119,166 @@ func creatFolder(name string) {
 	}
 }
 
-func creatIcons(routinesAmount int, wg *sync.WaitGroup) {
-	files, err := ioutil.ReadDir(originalImagesDirName)
-	if err != nil {
-		panic(err)
-	}
+func creatIcons(iconsDirPath string, width uint, routinesAmount uint, wg *sync.WaitGroup) {
+	filesList, err := ioutil.ReadDir(nameDirOrigImages)
+	panicErr(err)
 
 	tokens := make(chan struct{}, routinesAmount)
-	for _, file := range files {
-		go creatIcon(file, tokens, wg)
+	for _, fileInfo := range filesList {
+		go creatIcon(fileInfo, iconsDirPath, width, tokens, wg)
 	}
 	wg.Wait()
 
 }
 
-func creatIcon(fileInfo os.FileInfo, tokens chan struct{}, wg *sync.WaitGroup) {
+func creatIcon(fileInfo os.FileInfo, iconsDirPath string, width uint, tokens chan struct{}, wg *sync.WaitGroup) {
 	wg.Add(1)
 	defer wg.Done()
 
 	tokens <- struct{}{}
 
-	file, err := os.Open(originalImagesDirPath + fileInfo.Name())
-	if err != nil {
-		panic(err)
-	}
+	filePath := pathDirOrigImages + fileInfo.Name()
+	writeIconToFile(filePath, iconsDirPath, width)
 
-	// decode jpeg into image.Image
+	<-tokens
+}
+
+func writeIconToFile(filePath string, iconsDirPath string, width uint) {
+	mimeType := detectFilesMime(filePath)
+
+	if mimeMap[mimeType] {
+		file := openFile(filePath)
+
+		switch mimeType {
+		case jpegMime:
+			jpegCreate(file, width, iconsDirPath)
+		case pngMime:
+			pngCreate(file, width, iconsDirPath)
+		default:
+			gifCreate(file, width, iconsDirPath)
+		}
+
+	} else {
+		dest, err := os.Create(iconsDirPath + getFileNameFromPath(filePath))
+		panicErr(err)
+		dest.Close()
+	}
+}
+
+func jpegCreate(file *os.File, width uint, iconsDirPath string) {
+
+	// decode file into image.Image
 	img, err := jpeg.Decode(file)
 	if err != nil {
-		fmt.Printf("file: %s", file.Name())
+		fmt.Println("file: " + file.Name())
 		panic(err)
 	}
+	fileInfo, err := file.Stat()
 	file.Close()
 
-	// resize to width 1000 using Lanczos resampling
+	// resize to desired width using Lanczos resampling
 	// and preserve aspect ratio
-	m := resize.Resize(64, 0, img, resize.Lanczos3)
+	imgRes := resize.Resize(width, 0, img, resize.Lanczos3)
 
 	dest, err := os.Create(iconsDirPath + fileInfo.Name())
-	if err != nil {
-		panic(err)
-	}
+	panicErr(err)
 	defer dest.Close()
 
 	// write new image to file
-	jpeg.Encode(dest, m, nil)
+	jpeg.Encode(dest, imgRes, nil)
 	fmt.Println(dest.Name())
-	<-tokens
+}
+
+func pngCreate(file *os.File, width uint, iconsDirPath string) {
+
+	// decode file into image.Image
+	img, err := png.Decode(file)
+	if err != nil {
+		fmt.Println("file: " + file.Name())
+		panic(err)
+	}
+	fileInfo, err := file.Stat()
+	file.Close()
+
+	// resize to desired width using Lanczos resampling
+	// and preserve aspect ratio
+	imgRes := resize.Resize(width, 0, img, resize.Lanczos3)
+
+	dest, err := os.Create(iconsDirPath + fileInfo.Name())
+	panicErr(err)
+	defer dest.Close()
+
+	// write new image to file
+	png.Encode(dest, imgRes)
+	fmt.Println(dest.Name())
+}
+
+func gifCreate(file *os.File, width uint, iconsDirPath string) {
+
+	// decode file into image.Image
+	img, err := gif.Decode(file)
+	if err != nil {
+		fmt.Println("file: " + file.Name())
+		panic(err)
+	}
+	fileInfo, err := file.Stat()
+	file.Close()
+
+	// resize to desired width using Lanczos resampling
+	// and preserve aspect ratio
+	imgRes := resize.Resize(width, 0, img, resize.Lanczos3)
+
+	dest, err := os.Create(iconsDirPath + fileInfo.Name())
+	panicErr(err)
+	defer dest.Close()
+
+	// write new image to file
+	gif.Encode(dest, imgRes, nil)
+	fmt.Println(dest.Name())
+}
+
+func openFile(filePath string) *os.File {
+	file, err := os.Open(filePath)
+	panicErr(err)
+	return file
+}
+
+func panicErr(err error) {
+	if err != nil {
+		panic(err)
+	}
+}
+
+func detectFilesMime(filePath string) string {
+	buff, err := ioutil.ReadFile(filePath)
+	if err != nil {
+		fmt.Print(err)
+	}
+	return http.DetectContentType(buff)
 }
 
 func main() {
 	var wg sync.WaitGroup
 	var urls []string
+	args := os.Args
 
-	creatFolder(originalImagesDirName)
-	creatFolder(iconsDirName)
-	urls = append(urls[0:], readFromFile("urls.txt")...)
-	downloadFiles(urls, 15, &wg)
-	creatIcons(4, &wg)
+	dwldRoutinesAmount, err := strconv.ParseUint(args[4], 10, 64)
+	panicErr(err)
+
+	width, err := strconv.ParseUint(args[3], 10, 64)
+	panicErr(err)
+
+	iconsRoutinesAmount, err := strconv.ParseUint(args[5], 10, 64)
+	panicErr(err)
+
+	iconsDirPath := args[2] + "/"
+
+	creatFolder(nameDirOrigImages)
+	creatFolder(args[2])
+
+	urls = append(urls[0:], readFromFile(args[1])...)
+
+	downloadFiles(urls, uint(dwldRoutinesAmount), &wg)
+	creatIcons(iconsDirPath, uint(width), uint(iconsRoutinesAmount), &wg)
 
 }
