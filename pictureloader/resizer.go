@@ -3,29 +3,19 @@ package main
 import (
 	"errors"
 	"fmt"
+	"image"
 	"image/gif"
 	"image/jpeg"
 	"image/png"
-	"io/ioutil"
-	"log"
-	"net/http"
 	"os"
 
 	"github.com/nfnt/resize"
 )
 
-var mimeMap = map[string]bool{
-	"image/jpeg": true,
-	"image/png":  true,
-	"image/gif":  true}
-
 const (
-	jpegMime             = "image/jpeg"
-	pngMime              = "image/png"
-	gifMime              = "image/gif"
-	jpegDecodeErrMessage = "Something went wrong with decoding jpeg file:\n"
-	pngDecodeErrMessage  = "Something went wrong with decoding png file:\n"
-	gifDecodeErrMessage  = "Something went wrong with decoding gif file:\n"
+	jpegMime         = "jpeg"
+	pngMime          = "png"
+	decodeErrMessage = "Something went wrong with decoding file: "
 )
 
 func resizer(configuration *argsConfig, channels channels) {
@@ -38,150 +28,119 @@ func resizer(configuration *argsConfig, channels channels) {
 			continue
 		}
 
-		mimeType := detectFilesMime(downloadedFile.path)
-
-		if mimeMap[mimeType] {
-			file, err := os.Open(downloadedFile.path)
-			//if can't to open, then create empty avatar file
-			if err != nil {
-				log.Println(err)
-				goto emptyFileCreate
-			}
-
-			switch mimeType {
-			case jpegMime:
-				jpegCreate(file, configuration)
-			case pngMime:
-				pngCreate(file, configuration)
-			default:
-				gifCreate(file, configuration)
-			}
-
-			channels.resizedFiles <- true
+		file, err := os.Open(downloadedFile.path)
+		if err != nil {
+			logErr(err)
+			err = creatEmptyAvatar(downloadedFile.path, configuration, channels)
+			logErr(err)
 			continue
 		}
 
-	emptyFileCreate:
-		filePathAvatar, err := getFileNameFromPath(configuration, downloadedFile.path, false)
-		//if no valid name available, skip iteration
+		img, format, err := image.Decode(file)
 		if err != nil {
-			log.Println(err)
+			logErr(errors.New(decodeErrMessage + downloadedFile.path))
+			err = creatEmptyAvatar(downloadedFile.path, configuration, channels)
+			logErr(err)
+			continue
+		}
+
+		fileName := file.Name()
+		err = file.Close()
+		logErr(err)
+
+		switch format {
+		case jpegMime:
+			err = jpegCreate(img, fileName, configuration)
+		case pngMime:
+			err = pngCreate(img, fileName, configuration)
+		default:
+			err = gifCreate(img, fileName, configuration)
+		}
+
+		if err != nil {
+			logErr(err)
 			channels.resizedFiles <- false
 			continue
 		}
-
-		dest, err := os.Create(filePathAvatar)
-		logErr(err)
-		dest.Close()
-
 		channels.resizedFiles <- true
 
 	}
 }
 
-func detectFilesMime(filePath string) string {
-	buff, err := ioutil.ReadFile(filePath)
+func creatEmptyAvatar(downloadedFilePath string, configuration *argsConfig, channels channels) error {
+	filePathAvatar, err := getFileNameFromPath(configuration, downloadedFilePath, false)
+	//if no valid name available, skip iteration
 	if err != nil {
-		fmt.Print(err)
+		channels.resizedFiles <- false
+		return err
 	}
-	return http.DetectContentType(buff)
+
+	dest, err := os.Create(filePathAvatar)
+	if err != nil {
+		channels.resizedFiles <- false
+		return err
+	}
+	dest.Close()
+
+	channels.resizedFiles <- true
+	return nil
 }
 
-func jpegCreate(file *os.File, configuration *argsConfig) error {
-
-	// decode file into image.Image
-	img, err := jpeg.Decode(file)
+func jpegCreate(img image.Image, fileName string, configuration *argsConfig) error {
+	imgRes, destFile, err := resizeImage(img, fileName, configuration)
 	if err != nil {
-		return errors.New(jpegDecodeErrMessage + file.Name())
+		return err
 	}
 
+	// write new image to file
+	jpeg.Encode(destFile, imgRes, nil)
+	fmt.Println("jpeg: ", destFile.Name())
+
+	return nil
+}
+
+func pngCreate(img image.Image, fileName string, configuration *argsConfig) error {
+	imgRes, destFile, err := resizeImage(img, fileName, configuration)
+	if err != nil {
+		return err
+	}
+
+	// write new image to file
+	png.Encode(destFile, imgRes)
+	fmt.Println("png: ", destFile.Name())
+
+	return nil
+}
+
+func gifCreate(img image.Image, fileName string, configuration *argsConfig) error {
+	imgRes, destFile, err := resizeImage(img, fileName, configuration)
+	if err != nil {
+		return err
+	}
+	// write new image to file
+	gif.Encode(destFile, imgRes, nil)
+	fmt.Println("gif: ", destFile.Name())
+
+	return nil
+}
+
+func resizeImage(img image.Image, fileName string, configuration *argsConfig) (image.Image, *os.File, error) {
 	// resize to desired width using Lanczos resampling
 	// and preserve aspect ratio
 	imgRes := resize.Resize(configuration.newPictureWidth, 0, img, resize.Lanczos3)
 
 	//Choose file name for our resized image
-	filePath, err := getFileNameFromPath(configuration, file.Name(), false)
+	filePath, err := getFileNameFromPath(configuration, fileName, false)
 	//if no valid name available, return error
 	if err != nil {
-		return err
+		return nil, nil, err
 	}
 
 	dest, err := os.Create(filePath)
 	if err != nil {
-		return err
+		return nil, nil, err
 	}
-	file.Close()
+
 	defer dest.Close()
-
-	// write new image to file
-	jpeg.Encode(dest, imgRes, nil)
-	fmt.Println("jpeg: ", dest.Name())
-
-	return nil
-}
-
-func pngCreate(file *os.File, configuration *argsConfig) error {
-
-	// decode file into image.Image
-	img, err := png.Decode(file)
-	if err != nil {
-		return errors.New(pngDecodeErrMessage + file.Name())
-	}
-
-	// resize to desired width using Lanczos resampling
-	// and preserve aspect ratio
-	imgRes := resize.Resize(configuration.newPictureWidth, 0, img, resize.Lanczos3)
-
-	//Choose file name for our resized image
-	filePath, err := getFileNameFromPath(configuration, file.Name(), false)
-	//if no valid name available, return error
-	if err != nil {
-		return err
-	}
-
-	dest, err := os.Create(filePath)
-	if err != nil {
-		return err
-	}
-	file.Close()
-	defer dest.Close()
-
-	// write new image to file
-	png.Encode(dest, imgRes)
-	fmt.Println("png: ", dest.Name())
-
-	return nil
-}
-
-func gifCreate(file *os.File, configuration *argsConfig) error {
-
-	// decode file into image.Image
-	img, err := gif.Decode(file)
-	if err != nil {
-		return errors.New(gifDecodeErrMessage + file.Name())
-	}
-
-	// resize to desired width using Lanczos resampling
-	// and preserve aspect ratio
-	imgRes := resize.Resize(configuration.newPictureWidth, 0, img, resize.Lanczos3)
-
-	//Choose file name for our resized image
-	filePath, err := getFileNameFromPath(configuration, file.Name(), false)
-	//if no valid name available, return error
-	if err != nil {
-		return err
-	}
-
-	dest, err := os.Create(filePath)
-	if err != nil {
-		return err
-	}
-	file.Close()
-	defer dest.Close()
-
-	// write new image to file
-	gif.Encode(dest, imgRes, nil)
-	fmt.Println("gif: ", dest.Name())
-
-	return nil
+	return imgRes, dest, nil
 }
