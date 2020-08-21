@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	pathPattern            = `^(\/?)(\w+([\/ ]?))+((\.\w+)?)$` //pattern to check if local path value is correct.
+	pathPattern            = `(^(\/?[^<>:"\/\\|?*]+)+\/?$)|(^([a-zA-Z]\:\\)?(\\?[^<>:"\/\\|?*]+)+\\?$)` //pattern to check if local path value is correct.
 	pathErrMessage         = "Incorrect path value:\n"
 	fileNotExistErrMessage = "File does not exist:\n"
 	uintErrMessage         = "The value must be an integer > = 1. Incorrect value:\n"

@@ -1,5 +1,20 @@
 package main
 
+//Uploads a pool of files by http(from urls) taken from a local text file.
+//Saves them to the specified folder.
+//Compresses the size of images proportionally to the specified by user value in pixels (width)
+//and saves to the "avatars" folder.
+//The folder "avatars" is created automatically in the folder specified by the user
+//for storing uploaded files.
+//
+//To start the program, you need to specify 5 arguments:
+// 1 - path to local file with urls
+// 2 - path for storing downloaded files (if the folder does not exist,
+//     it will be created at the specified path)
+// 3 - the value of the width in pixels for the compressed images
+// 4 - number of threads for parallel downloading of files (n> = 1)
+// 5 - number of threads for parallel compression of several downloaded images (n> = 1)
+
 import "os"
 
 //channel buffer size

@@ -20,8 +20,6 @@ var mimeMap = map[string]bool{
 	"image/gif":  true}
 
 const (
-	pathDirOrigImages    = "originals/"
-	nameDirOrigImages    = "originals"
 	jpegMime             = "image/jpeg"
 	pngMime              = "image/png"
 	gifMime              = "image/gif"
