@@ -29,6 +29,7 @@ func resizer(configuration *argsConfig, channels channels) {
 		}
 
 		file, err := os.Open(downloadedFile.path)
+		//if can't open source file, then creat empty destination file
 		if err != nil {
 			logErr(err)
 			err = creatEmptyAvatar(downloadedFile.path, configuration, channels)
@@ -36,7 +37,9 @@ func resizer(configuration *argsConfig, channels channels) {
 			continue
 		}
 
+		//Create image.Image object and get it's format
 		img, format, err := image.Decode(file)
+		//if format of image is uknown(it's not an image), then creat empty destination file
 		if err != nil {
 			logErr(errors.New(decodeErrMessage + downloadedFile.path))
 			err = creatEmptyAvatar(downloadedFile.path, configuration, channels)
@@ -44,10 +47,12 @@ func resizer(configuration *argsConfig, channels channels) {
 			continue
 		}
 
+		//remember source file path and close it. We do not need it anymore
 		fileName := file.Name()
 		err = file.Close()
 		logErr(err)
 
+		//depend on image's format creat it's avatar
 		switch format {
 		case jpegMime:
 			err = jpegCreate(img, fileName, configuration)
@@ -57,16 +62,21 @@ func resizer(configuration *argsConfig, channels channels) {
 			err = gifCreate(img, fileName, configuration)
 		}
 
+		//if avatar's creation was unsuccesfull add "false marker" to channel of resized files
 		if err != nil {
 			logErr(err)
 			channels.resizedFiles <- false
 			continue
 		}
+
+		//if avatar's creation was succesfull add "true marker" to channel of resized files
 		channels.resizedFiles <- true
 
 	}
 }
 
+//creatEmptyAvatar creates empty destination file(avatar of source file). Used when something wrong
+//with source file.
 func creatEmptyAvatar(downloadedFilePath string, configuration *argsConfig, channels channels) error {
 	filePathAvatar, err := getFileNameFromPath(configuration, downloadedFilePath, false)
 	//if no valid name available, skip iteration
