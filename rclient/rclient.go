@@ -13,13 +13,13 @@ const (
 	protocol                      = "tcp"
 	defaultAddr                   = "127.0.0.1:16998"
 	withoutResponseLimit          = 7
-	responseLengthValueErrMessage = "ERR: Bad respoonse length value: %s"
+	responseLengthValueErrMessage = "ERR: Bad respoonse length Value: %s"
 	responseLengthReadErrMessage  = "ERR: Can't read response lentgth. Have read: %s. Error: %s"
-	sendTitle                     = "send: "
+	sendTitle                     = ">>send: "
 	stdinErrMessage               = "STDIN reading problem. Input: %s"
 	writeRequestErrMessage        = "ERR: %d bytes were written. ERR: %s;"
 	readResponseErrMessage        = "ERR: No response from server: %s;"
-	responseTitle                 = "server response: %s"
+	responseTitle                 = "LOG: RESPONSE: %s"
 )
 
 func main() {

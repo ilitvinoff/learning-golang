@@ -8,93 +8,114 @@ import (
 )
 
 type onExparation struct {
-	*sync.Mutex
-	byKeyMap  map[string]time.Time
-	byTimeMap map[time.Time][]string
-	timeSlice []time.Time
+	Mut       *sync.Mutex
+	ByKeyMap  map[string]time.Time
+	ByTimeMap map[time.Time][]string
+	TimeSlice []time.Time
 }
 
-func (expKeys *onExparation) String() string {
-	return fmt.Sprintf("bykeymap: %v\nbytimemap: %v\ntimeslice: %v", expKeys.byKeyMap, expKeys.byTimeMap, expKeys.timeSlice)
+func (ExpKeys *onExparation) String() string {
+	res := "On exparation:\nby key map:\n"
+	for v, k := range ExpKeys.ByKeyMap {
+		res = fmt.Sprint(res, "{", v, " : ", k, "}\n")
+	}
+
+	res = fmt.Sprint(res, "by time map:\n")
+	for v, k := range ExpKeys.ByTimeMap {
+		res = fmt.Sprint(res, "{", v, " : ", k, "}\n")
+	}
+	
+	res = fmt.Sprint(res, "sorted by time slice:\n")
+	for _, v := range ExpKeys.TimeSlice {
+		res = fmt.Sprint(res, v, ", ")
+	}
+	return res
 }
 
 func newOnExparationStruct() *onExparation {
 	return &onExparation{&sync.Mutex{}, make(map[string]time.Time), make(map[time.Time][]string), make([]time.Time, 0)}
 }
 
-func (expKeys *onExparation) addExparationForKey(key string, expTime time.Time) {
-	expKeys.Lock()
+func (ExpKeys *onExparation) addExparationForKey(key string, expTime time.Time) {
+	ExpKeys.Mut.Lock()
 
-	defer expKeys.Unlock()
+	defer ExpKeys.Mut.Unlock()
 
-	expKeys.timeSlice = append(expKeys.timeSlice, expTime)
-	sortKeysToExpire(expKeys)
+	ExpKeys.TimeSlice = append(ExpKeys.TimeSlice, expTime)
+	sortKeysToExpire(ExpKeys)
 
-	_, ok := expKeys.byKeyMap[key]
+	_, ok := ExpKeys.ByKeyMap[key]
 
 	if ok {
-		removeExpiredKey(key, expKeys)
-		expKeys.byKeyMap[key] = expTime
-		expKeys.byTimeMap[expTime] = append(expKeys.byTimeMap[expTime], key)
+		removeExpiredKey(key, ExpKeys)
+		ExpKeys.ByKeyMap[key] = expTime
+
+		_, ok = ExpKeys.ByTimeMap[expTime]
+
+		if ok {
+			ExpKeys.ByTimeMap[expTime] = append(ExpKeys.ByTimeMap[expTime], key)
+			return
+		}
+		ExpKeys.ByTimeMap[expTime] = append(ExpKeys.ByTimeMap[expTime], key)
 		return
 	}
 
-	expKeys.byKeyMap[key] = expTime
-	_, ok = expKeys.byTimeMap[expTime]
+	ExpKeys.ByKeyMap[key] = expTime
+	_, ok = ExpKeys.ByTimeMap[expTime]
 
 	if ok {
-		expKeys.byTimeMap[expTime] = append(expKeys.byTimeMap[expTime], key)
+		ExpKeys.ByTimeMap[expTime] = append(ExpKeys.ByTimeMap[expTime], key)
 		return
 	}
 
-	expKeys.byTimeMap[expTime] = []string{key}
+	ExpKeys.ByTimeMap[expTime] = []string{key}
 }
 
-func (expKeys *onExparation) removeExparationFromKey(key string) {
-	expKeys.Lock()
-	removeExpiredKey(key, expKeys)
-	expKeys.Unlock()
+func (ExpKeys *onExparation) removeExparationFromKey(key string) {
+	ExpKeys.Mut.Lock()
+	removeExpiredKey(key, ExpKeys)
+	ExpKeys.Mut.Unlock()
 }
 
-func (expKeys *onExparation) getExpiredKeys(tillTime time.Time) []string {
-	expKeys.Lock()
+func (ExpKeys *onExparation) getExpiredKeys(tillTime time.Time) []string {
+	ExpKeys.Mut.Lock()
 
 	keysToReturn := make([]string, 0)
-	indexToDeleteFromTimeSlice := 0
+	indexToDeleteBefore := 0
 
-	for _, timeValue := range expKeys.timeSlice {
+	for _, timeValue := range ExpKeys.TimeSlice {
 
 		if timeValue.Before(tillTime) {
 
-			indexToDeleteFromTimeSlice++
-			keysToReturn = append(keysToReturn, expKeys.byTimeMap[timeValue]...)
-			delete(expKeys.byTimeMap, timeValue)
+			indexToDeleteBefore++
+			keysToReturn = append(keysToReturn, ExpKeys.ByTimeMap[timeValue]...)
+			delete(ExpKeys.ByTimeMap, timeValue)
 			continue
 		}
 		break
 	}
 
-	expKeys.timeSlice = expKeys.timeSlice[indexToDeleteFromTimeSlice:]
+	ExpKeys.TimeSlice = ExpKeys.TimeSlice[indexToDeleteBefore:]
 
 	for _, key := range keysToReturn {
-		delete(expKeys.byKeyMap, key)
+		delete(ExpKeys.ByKeyMap, key)
 	}
 
-	expKeys.Unlock()
+	ExpKeys.Mut.Unlock()
 	return keysToReturn
 }
 
-func sortKeysToExpire(expKeys *onExparation) {
-	sort.Slice(expKeys.timeSlice, func(i, j int) bool { return expKeys.timeSlice[i].Before(expKeys.timeSlice[j]) })
+func sortKeysToExpire(ExpKeys *onExparation) {
+	sort.Slice(ExpKeys.TimeSlice, func(i, j int) bool { return ExpKeys.TimeSlice[i].Before(ExpKeys.TimeSlice[j]) })
 }
 
-func removeExpiredKey(key string, expKeys *onExparation) {
-	expTime, ok := expKeys.byKeyMap[key]
+func removeExpiredKey(key string, ExpKeys *onExparation) {
+	expTime, ok := ExpKeys.ByKeyMap[key]
 
 	if ok {
-		delete(expKeys.byKeyMap, key)
+		delete(ExpKeys.ByKeyMap, key)
 
-		keySlice := expKeys.byTimeMap[expTime]
+		keySlice := ExpKeys.ByTimeMap[expTime]
 
 		for i, k := range keySlice {
 			if k == key {
@@ -102,7 +123,11 @@ func removeExpiredKey(key string, expKeys *onExparation) {
 				break
 			}
 		}
-		expKeys.byTimeMap[expTime] = keySlice
+		if len(keySlice) == 0 {
+			delete(ExpKeys.ByTimeMap, expTime)
+			return
+		}
+		ExpKeys.ByTimeMap[expTime] = keySlice
 	}
 }
 

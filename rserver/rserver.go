@@ -62,7 +62,7 @@ func parseRequest(request string) *command {
 	return &command{expression[0], expression[1:]}
 }
 
-func getResponse(conn net.Conn, cmd *command, rc *rcashe) (string, error) {
+func getResponse(conn net.Conn, cmd *command, rc *RCashe) (string, error) {
 	executor, ok := commands[cmd.name]
 	if !ok {
 		return "", fmt.Errorf(responseErrMessage, cmd.name, conn.RemoteAddr())
@@ -76,7 +76,7 @@ func getResponse(conn net.Conn, cmd *command, rc *rcashe) (string, error) {
 	return addLenPrefix(result), nil
 }
 
-func handleConnection(rc *rcashe, conn net.Conn) {
+func handleConnection(rc *RCashe, conn net.Conn) {
 	defer conn.Close()
 	defer log.Printf(socketClosedLogMessage, conn.RemoteAddr())
 
