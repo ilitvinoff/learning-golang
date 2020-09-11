@@ -53,7 +53,7 @@ type Value struct {
 
 //newRcashe - creates and returns *Rcashe instance
 func newRCashe() *RCashe {
-	return &RCashe{&sync.RWMutex{}, make(map[string]*Value), newOnExparationStruct()}
+	return &RCashe{&sync.RWMutex{}, make(map[string]*Value), newOnExparation()}
 }
 
 //newValue - creates and returns *Value instance
