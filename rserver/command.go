@@ -4,22 +4,24 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"os"
 	"strconv"
 	"sync"
 	"time"
 )
 
+/*Commands Map - includes a list of custom commands for interacting with the database*/
 var commands = map[string]func(*RCashe, *command) (string, error){
-	"set":         set,
-	"get":         get,
-	"getset":      getset,
-	"exist":       exists,
-	"del":         deleteElement,
-	"ex":          expire,
-	"savedata":    saveData,
-	"restoredata": restoreData,
-	"showall":     showAll,
+	"set":     set,
+	"get":     get,
+	"getset":  getset,
+	"exist":   exists,
+	"del":     deleteElement,
+	"ex":      expire,
+	"save":    saveData,
+	"restore": restoreData,
+	"showall": showAll,
 }
 
 const (
@@ -29,27 +31,32 @@ const (
 	getsetErrMessage = "ERR: No available Value for key: %s, is present. %s;"
 )
 
+//Command - describes user command.
 type command struct {
 	name string
 	args []string
 }
 
+//RCashe - main struct to store all possible information about our database.
 type RCashe struct {
 	Mut       *sync.RWMutex
-	DataStore map[string]*Value
-	ExpKeys   *onExparation
+	DataStore map[string]*Value //main database
+	ExpKeys   *onExparation     //information about keys with a set expiration date
 }
 
+//Value - describes value seted to key in Rcashe.DataStore
 type Value struct {
 	Mut           *sync.Mutex
 	Value         string
 	ExpireIsSeted bool
 }
 
+//newRcashe - creates and returns *Rcashe instance
 func newRCashe() *RCashe {
 	return &RCashe{&sync.RWMutex{}, make(map[string]*Value), newOnExparationStruct()}
 }
 
+//newValue - creates and returns *Value instance
 func newValue(s string, ExpireIsSeted bool) *Value {
 	return &Value{&sync.Mutex{}, s, ExpireIsSeted}
 }
@@ -71,6 +78,7 @@ func (cmd *command) String() string {
 	return fmt.Sprintf("Command name: %s, args: %s;", cmd.name, cmd.args)
 }
 
+//validateArgsAmount validate if arg's amount is correct
 func validateArgsAmount(cmd *command, n int) error {
 	if len(cmd.args) != n {
 		return fmt.Errorf(ifErrMessage, n, len(cmd.args), cmd)
@@ -78,6 +86,7 @@ func validateArgsAmount(cmd *command, n int) error {
 	return nil
 }
 
+//validateExparationValue validate if value seted as exparation date for key is correct
 func validateExparationValue(Value string) (time.Duration, error) {
 	n, err := strconv.Atoi(Value)
 	if err != nil {
@@ -91,6 +100,11 @@ func validateExparationValue(Value string) (time.Duration, error) {
 	return time.Duration(n) * time.Second, nil
 }
 
+//set - set's to RCashe.DataStore {key:value} pair. If key allready exists,
+//set Value.ExpireIsSeted to false.
+//Return:
+//"Ok",nil - if successful,
+//"", error - if unsuccessful
 func set(RCashe *RCashe, cmd *command) (string, error) {
 	err := validateArgsAmount(cmd, 2)
 	if err != nil {
@@ -107,6 +121,8 @@ func set(RCashe *RCashe, cmd *command) (string, error) {
 		Value.ExpireIsSeted = false
 		Value.Mut.Unlock()
 
+		RCashe.ExpKeys.removeExparationFromKey(cmd.args[0])
+
 		return OK, nil
 	}
 
@@ -115,6 +131,10 @@ func set(RCashe *RCashe, cmd *command) (string, error) {
 	return OK, nil
 }
 
+//get - return the value corresponding to the key from RCashe.DataStore,
+//Return:
+//Value.Value, nil - if successful,
+//"", error - if unsuccessful
 func get(RCashe *RCashe, cmd *command) (string, error) {
 	err := validateArgsAmount(cmd, 1)
 	if err != nil {
@@ -133,6 +153,8 @@ func get(RCashe *RCashe, cmd *command) (string, error) {
 	return "", fmt.Errorf("ERR: NO SUCH ELEMENT: key = %s;", cmd.args[0])
 }
 
+//getset - set to key new value and return the old one.
+//If there was no such key in database, add new pair{key:value} and return "",error.
 func getset(RCashe *RCashe, cmd *command) (string, error) {
 	err := validateArgsAmount(cmd, 2)
 	if err != nil {
@@ -152,6 +174,8 @@ func getset(RCashe *RCashe, cmd *command) (string, error) {
 	return "", fmt.Errorf(getsetErrMessage, cmd.args[0], cmd)
 }
 
+//exists - check if key is presented in database.
+//return "true" - if is, "false" - if not, or error if it was occured.
 func exists(RCashe *RCashe, cmd *command) (string, error) {
 	err := validateArgsAmount(cmd, 1)
 	if err != nil {
@@ -164,10 +188,11 @@ func exists(RCashe *RCashe, cmd *command) (string, error) {
 	return strconv.FormatBool(ok), nil
 }
 
+//deleteElement - delete element from database by key.
+//return amount of deleted keys, or error if it was occured.
 func deleteElement(RCashe *RCashe, cmd *command) (string, error) {
-	err := validateArgsAmount(cmd, 1)
-	if err != nil {
-		return "", err
+	if len(cmd.args) < 2 {
+		return "", fmt.Errorf("ERR: Not enough arguments. Command name: %s", cmd.name)
 	}
 
 	counter := 0
@@ -184,6 +209,10 @@ func deleteElement(RCashe *RCashe, cmd *command) (string, error) {
 	return strconv.Itoa(counter), nil
 }
 
+//expire - set exparation date to element of database bu key.
+//This element will be deleted when expired.
+//Return "true"/"false",nil - when seted/not seted.
+//Return "",error - if error was occured.
 func expire(RCashe *RCashe, cmd *command) (string, error) {
 	err := validateArgsAmount(cmd, 2)
 	if err != nil {
@@ -204,7 +233,7 @@ func expire(RCashe *RCashe, cmd *command) (string, error) {
 		Value.ExpireIsSeted = true
 		Value.Mut.Unlock()
 
-		RCashe.ExpKeys.addExparationForKey(cmd.args[0], time.Now().Add(expTime))
+		RCashe.ExpKeys.addExparationForKey(cmd.args[0], time.Now().Add(expTime).Truncate(1*time.Second))
 
 		return "true", nil
 	}
@@ -212,6 +241,7 @@ func expire(RCashe *RCashe, cmd *command) (string, error) {
 	return "false", nil
 }
 
+// exparationWatcher - Checks if any keys have expired at the moment, and removes them, if any.
 func (RCashe *RCashe) exparationWatcher() {
 	for {
 
@@ -232,6 +262,9 @@ func (RCashe *RCashe) exparationWatcher() {
 	}
 }
 
+//saveData - save databse as json formated string to file.
+//Return "true",nil - if successful.
+//Return "",error - if it was occured.
 func saveData(RCashe *RCashe, cmd *command) (string, error) {
 	err := validateArgsAmount(cmd, 1)
 	if err != nil {
@@ -247,8 +280,6 @@ func saveData(RCashe *RCashe, cmd *command) (string, error) {
 	slice, err := json.Marshal(&RCashe)
 	RCashe.Mut.Unlock()
 
-	fmt.Println("MARSHAL: \n" + string(slice))
-
 	if err != nil {
 		return "", fmt.Errorf("ERR: ENCODE ERR: %s", err)
 	}
@@ -259,27 +290,32 @@ func saveData(RCashe *RCashe, cmd *command) (string, error) {
 	}
 	file.Close()
 
-	return "saved", nil
+	log.Println("MARSHAL AND SAVE: \n" + string(slice))
+	return "true", nil
 }
 
+//showAll - return all information from database as string.
 func showAll(RCashe *RCashe, cmd *command) (string, error) {
 	return RCashe.String(), nil
 }
 
+//restoreData - restore database with help of json formated string(from file).
+//Return "true",nil - if successful.
+//Return "",error - if it was occured.
 func restoreData(RCashe *RCashe, cmd *command) (string, error) {
 	err := validateArgsAmount(cmd, 1)
 	if err != nil {
 		return "", err
 	}
 
-	file, err := os.Open("store.gob")
+	file, err := os.Open(cmd.args[0])
 	if err != nil {
-		return "", fmt.Errorf("ERR: CAN'T READ DATA FROM FILE: %s", err)
+		return "", fmt.Errorf("ERR: CAN'T READ DATA FROM FILE: %s. ERR: %s", cmd.args[0], err)
 	}
 
 	slice, err := ioutil.ReadAll(file)
 	if err != nil {
-		return "", fmt.Errorf("ERR: READING FROM FILE ERR: %s", err)
+		return "", fmt.Errorf("ERR: READING FROM FILE: %s. ERR: %s", cmd.args[0], err)
 	}
 
 	file.Close()
@@ -289,11 +325,12 @@ func restoreData(RCashe *RCashe, cmd *command) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("ERR: UNMARSHAL ERR: %s", err)
 	}
-	fmt.Println("\nNEWCASHE:\n" + newCashe.String())
+
 	RCashe.Mut.Lock()
 	RCashe.DataStore = newCashe.DataStore
 	RCashe.ExpKeys = newCashe.ExpKeys
 	RCashe.Mut.Unlock()
 
-	return "restored", nil
+	log.Println("UNMARSHAL AND RESTORE: \n" + string(slice))
+	return "true", nil
 }

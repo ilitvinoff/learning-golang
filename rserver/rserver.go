@@ -6,7 +6,6 @@ import (
 	"log"
 	"net"
 	"strconv"
-	"strings"
 )
 
 const (
@@ -19,6 +18,8 @@ const (
 	requestLogMessage        = "LOG: client: %s, request: %s;"
 )
 
+//getRequestLength - based on the netstring protocol, returns the request length from the request.
+//Returns error - if it was occured
 func getRequestLength(reader *bufio.Reader) (int, error) {
 	requestLength, err := reader.ReadString(':')
 	if err != nil {
@@ -36,6 +37,8 @@ func getRequestLength(reader *bufio.Reader) (int, error) {
 	return n, nil
 }
 
+//readRequest -  reads and returns client's reaquest.
+//Returns error - if it was occured
 func readRequest(conn net.Conn) (string, error) {
 
 	connReader := bufio.NewReader(conn)
@@ -56,12 +59,79 @@ func readRequest(conn net.Conn) (string, error) {
 	return string(request), nil
 }
 
-func parseRequest(request string) *command {
-	expression := strings.Split(request, " ")
+//parseRequest - parses request to command and arguments.
+//Return:
+//*command,nil - if successful;
+//nil,error - if not.
+func parseRequest(request string) (*command, error) {
+	var parseResult []string
+	state := "start"
+	current := ""
+	quote := "\""
+	escapeNext := true
+	for i := 0; i < len(request); i++ {
+		c := request[i]
 
-	return &command{expression[0], expression[1:]}
+		if state == "quotes" {
+			if string(c) != quote {
+				current += string(c)
+			} else {
+				parseResult = append(parseResult, current)
+				current = ""
+				state = "start"
+			}
+			continue
+		}
+
+		if escapeNext {
+			current += string(c)
+			escapeNext = false
+			continue
+		}
+
+		if c == '\\' {
+			escapeNext = true
+			continue
+		}
+
+		if c == '"' || c == '\'' {
+			state = "quotes"
+			quote = string(c)
+			continue
+		}
+
+		if state == "arg" {
+			if c == ' ' || c == '\t' {
+				parseResult = append(parseResult, current)
+				current = ""
+				state = "start"
+			} else {
+				current += string(c)
+			}
+			continue
+		}
+
+		if c != ' ' && c != '\t' {
+			state = "arg"
+			current += string(c)
+		}
+	}
+
+	if state == "quotes" {
+		return nil, fmt.Errorf("Unclosed quote in command line: %s", request)
+	}
+
+	if current != "" {
+		parseResult = append(parseResult, current)
+	}
+
+	return &command{parseResult[0], parseResult[1:]}, nil
 }
 
+//getResponse - generates a response based on user's request.
+//Return:
+//response, nil - if successful;
+//"", error - if not.
 func getResponse(conn net.Conn, cmd *command, rc *RCashe) (string, error) {
 	executor, ok := commands[cmd.name]
 	if !ok {
@@ -76,6 +146,7 @@ func getResponse(conn net.Conn, cmd *command, rc *RCashe) (string, error) {
 	return addLenPrefix(result), nil
 }
 
+//handleConnection - when client connected handle the connection.
 func handleConnection(rc *RCashe, conn net.Conn) {
 	defer conn.Close()
 	defer log.Printf(socketClosedLogMessage, conn.RemoteAddr())
@@ -89,7 +160,14 @@ func handleConnection(rc *RCashe, conn net.Conn) {
 		}
 		log.Printf(requestLogMessage, conn.RemoteAddr(), request)
 
-		cmd := parseRequest(request)
+		cmd, err := parseRequest(request)
+		if err != nil {
+			_, err = conn.Write([]byte(addLenPrefix(err.Error())))
+			if err != nil {
+				log.Printf("ERR: <Parse err> send error: %s", err)
+			}
+			continue
+		}
 
 		response, err := getResponse(conn, cmd, rc)
 		if err != nil {

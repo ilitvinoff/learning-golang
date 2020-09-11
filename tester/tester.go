@@ -10,6 +10,8 @@ import (
 	"time"
 )
 
+//Program to make stresstest to server with database(redis format).
+
 const (
 	protocol                      = "tcp"
 	defaultAddr                   = "127.0.0.1:16998"
@@ -24,10 +26,14 @@ const (
 	responseTitle                 = "LOG: RESPONSE: %s"
 )
 
+//commands []string - List of commands to test with
 var commands = []string{"set n 1", "get n", "getset n 2", "exist n", "ex n 20"}
+
+//routinesLimit []int - list of the number of clients currently connected to the server
 var routinesLimit = []int{10, 100, 1000}
 
-type logStruct struct {
+//metrics - created to store metrics of testing
+type metrics struct {
 	command        string
 	routinesAmount int
 	execTimeChan   chan time.Duration
@@ -39,24 +45,27 @@ func main() {
 		addr = os.Args[1]
 	}
 
+	//for each command from commands-list
 	for _, command := range commands {
+		//for each possible amount of concurrent clients(from routinesLimit = []int{10, 100, 1000})
 		for _, n := range routinesLimit {
-			result := &logStruct{command, n, make(chan time.Duration, n*limitOfRequests)}
+			result := &metrics{command, n, make(chan time.Duration, n*limitOfRequests)}
 
-			metrics.logEntry(cmd, time.Now() - startTime);
-			metrics.logEntry("response", cmd, duration);
-
+			//start n-amount of consurrent clients(strestesters)
 			for i := 0; i < n; i++ {
 				go stressTester(addr, result)
 			}
 
+			//printout result of testing
 			fmt.Println(logResult(result))
 			close(result.execTimeChan)
 		}
 	}
 }
 
-func logResult(result *logStruct) string {
+//logReslt calculate min,max,average time of response from server for requested command.
+//Return max,min,average time, command name, amount of clients.
+func logResult(result *metrics) string {
 	var max, min, average time.Duration
 	var counter int64
 	var execTime time.Duration
@@ -81,7 +90,9 @@ func logResult(result *logStruct) string {
 	return fmt.Sprintf("COMMAND: %s, ROUTINES AMOUNT: %d, DURATIONS:\nmin: %s\nmax: %s\naverage: %s", result.command, result.routinesAmount, min, max, average)
 }
 
-func stressTester(address string, logStruct *logStruct) {
+//stressTester - open single connection to server, "atack" it with request-command 100-times(limitOfRequests),
+//measure response time from server and store it to metrics chan.
+func stressTester(address string, metrics *metrics) {
 	conn, err := net.Dial(protocol, address)
 
 	ifErrFatal(err)
@@ -89,7 +100,7 @@ func stressTester(address string, logStruct *logStruct) {
 
 	for i := 0; i < limitOfRequests; i++ {
 
-		n, err := conn.Write(getRequest(logStruct.command))
+		n, err := conn.Write(getRequest(metrics.command))
 		if err != nil {
 			log.Printf(writeRequestErrMessage, n, err.Error())
 		}
@@ -109,7 +120,7 @@ func stressTester(address string, logStruct *logStruct) {
 			log.Printf(readResponseErrMessage, err.Error())
 		}
 
-		logStruct.execTimeChan <- time.Since(start)
+		metrics.execTimeChan <- time.Since(start)
 	}
 }
 
@@ -142,7 +153,7 @@ func ifErrFatal(err error) {
 	}
 }
 
-func logStructErr(err error) {
+func logErr(err error) {
 	if err != nil {
 		log.Println(err)
 	}
