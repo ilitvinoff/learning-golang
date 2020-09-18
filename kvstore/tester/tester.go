@@ -67,10 +67,15 @@ func getMetrics(command string, routinesCount int, logChan chan logStruct) strin
 
 	average = time.Duration(int64(average.Nanoseconds()) / counter)
 	res := fmt.Sprintf("COMMAND: %s, ROUTINES AMOUNT: %d, DURATIONS:\nmin: %s\nmax: %s\naverage: %s\n", command, routinesCount, min, max, average)
-	res = fmt.Sprintf(res+"ERRORS:\nTOTAL: %d\nError's values:\n", errCounter)
-	for k, v := range errMap {
-		res = fmt.Sprintf(res+"%s [%d]\n", k, v)
+	res = fmt.Sprintf(res+"ERRORS OCCURED: %d\n", errCounter)
+
+	if errCounter > 0 {
+		res = fmt.Sprint("Error's values:\n")
+		for k, v := range errMap {
+			res = fmt.Sprintf(res+"%s [%d]\n", k, v)
+		}
 	}
+
 	return res
 }
 
