@@ -35,6 +35,29 @@ type logStruct struct {
 	execTime time.Duration
 }
 
+func main() {
+	config := getConfig(os.Args)
+
+	//for each command from commands-list
+	for _, command := range commands {
+		//for each possible amount of concurrent clients(from routinesLimit = []int{10, 100, 1000})
+		for _, n := range routinesLimit {
+			logChan := make(chan logStruct, n*limitOfRequests)
+			logUnit := logStruct{}
+
+			//start n-amount of consurrent clients(strestesters)
+			for i := 0; i < n; i++ {
+				go stressTester(config, command, logUnit, logChan)
+			}
+
+			//printout result of testing
+			fmt.Println(getMetrics(command, n, logChan))
+			close(logChan)
+		}
+	}
+
+}
+
 //logReslt calculates min,max,average time of response from server for requested command.
 //Counts the number of errors.
 //Return max,min,average time, command name, amount of clients.
@@ -77,29 +100,6 @@ func getMetrics(command string, routinesCount int, logChan chan logStruct) strin
 	}
 
 	return res
-}
-
-func main() {
-	config := getConfig(os.Args)
-
-	//for each command from commands-list
-	for _, command := range commands {
-		//for each possible amount of concurrent clients(from routinesLimit = []int{10, 100, 1000})
-		for _, n := range routinesLimit {
-			logChan := make(chan logStruct, n*limitOfRequests)
-			logUnit := logStruct{}
-
-			//start n-amount of consurrent clients(strestesters)
-			for i := 0; i < n; i++ {
-				go stressTester(config, command, logUnit, logChan)
-			}
-
-			//printout result of testing
-			fmt.Println(getMetrics(command, n, logChan))
-			close(logChan)
-		}
-	}
-
 }
 
 //stressTester - open single connection to server, "atack" it with request-command 100-times(limitOfRequests),
@@ -187,12 +187,12 @@ func getConfig(args []string) *config {
 	config := &config{defaultProtocol, defaultAddr}
 
 	if len(args) == 2 {
-		config.addr = fmt.Sprint(":", args[1])
+		config.addr = args[1]
 		return config
 	}
 
 	if len(args) == 3 {
-		config.addr = fmt.Sprint(":", args[1])
+		config.addr = args[1]
 		config.protocol = args[2]
 		return config
 	}

@@ -114,12 +114,12 @@ func getConfig(args []string) *config {
 	config := &config{defaultProtocol, defaultAddr}
 
 	if len(args) == 2 {
-		config.addr = fmt.Sprint(":", args[1])
+		config.addr = args[1]
 		return config
 	}
 
 	if len(args) == 3 {
-		config.addr = fmt.Sprint(":", args[1])
+		config.addr = args[1]
 		config.protocol = args[2]
 		return config
 	}
