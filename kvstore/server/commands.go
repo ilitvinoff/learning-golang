@@ -11,6 +11,10 @@ import (
 	"time"
 )
 
+const (
+	autosave = "autosave"
+)
+
 /*Commands Map - includes a list of custom commands for interacting with the database*/
 var commands = map[string]func(*KVCache, *command) (string, error){
 	//set - set's to KVCache.DataStore {key:value} pair. If key allready exists,
@@ -103,6 +107,7 @@ var commands = map[string]func(*KVCache, *command) (string, error){
 			_, ok := KVCache.DataStore[key]
 			if ok {
 				delete(KVCache.DataStore, key)
+				KVCache.ExpKeys.removeExpirationFromKey(key)
 				counter++
 			}
 		}
@@ -121,21 +126,18 @@ var commands = map[string]func(*KVCache, *command) (string, error){
 			return "", err
 		}
 
-		expTime, err := validateExpirationValue(cmd.args[1])
+		expTime, err := validateTimeDuration(cmd.args[1])
 		if err != nil {
 			return "", err
 		}
 
-		KVCache.Mut.RLock()
+		KVCache.Mut.Lock()
+		defer KVCache.Mut.Unlock()
 		Value, ok := KVCache.DataStore[cmd.args[0]]
-		KVCache.Mut.RUnlock()
 
 		if ok {
-			Value.Mut.Lock()
 			Value.ExpireIsSet = true
 			KVCache.ExpKeys.addExpirationForKey(cmd.args[0], time.Now().Add(expTime).Truncate(time.Second))
-			Value.Mut.Unlock()
-
 			return "true", nil
 		}
 
@@ -158,20 +160,99 @@ var commands = map[string]func(*KVCache, *command) (string, error){
 		defer file.Close()
 
 		KVCache.Mut.RLock()
-		slice, err := json.Marshal(&KVCache)
+		data, err := json.Marshal(&KVCache)
 		KVCache.Mut.RUnlock()
 
 		if err != nil {
 			return "", fmt.Errorf("ERR: ENCODE ERR: %s;", err)
 		}
 
-		_, err = file.Write(slice)
+		_, err = file.Write(data)
 		if err != nil {
 			return "", fmt.Errorf("ERR: WRITING TO FILE ERR: %s;", err)
 		}
 
-		log.Println("MARSHAL AND SAVE: \n" + string(slice))
+		log.Println("MARSHAL AND SAVE: \n" + string(data))
 		return "true", nil
+	},
+
+	"autosave": func(KVCache *KVCache, cmd *command) (string, error) {
+		err := validateArgsCount(cmd, 1)
+		if err != nil {
+			return "", err
+		}
+
+		interval, err := validateTimeDuration(cmd.args[0])
+		if err != nil {
+			return "", err
+		}
+
+		if KVCache.autosaveIndicator {
+			KVCache.autoSaveTimeDurationChan <- interval
+
+			if interval == time.Duration(0) {
+				KVCache.Mut.Lock()
+				KVCache.autosaveIndicator = false
+				KVCache.Mut.Unlock()
+				return fmt.Sprint("Autosave is off."), nil
+			}
+
+			return fmt.Sprintf("Interval changed to - %v\n", interval), nil
+		}
+
+		KVCache.autoSaveTimeDurationChan <- interval
+
+		go func() {
+			KVCache.Mut.Lock()
+			KVCache.autosaveIndicator = true
+			KVCache.Mut.Unlock()
+
+			for {
+				el := <-KVCache.autoSaveTimeDurationChan
+
+				if el == time.Duration(0) {
+					KVCache.Mut.Lock()
+					KVCache.autosaveIndicator = false
+					KVCache.Mut.Unlock()
+					return
+				}
+
+				file, err := os.Create(autosave)
+				if err != nil {
+					fmt.Printf("ERR:AUTOSAVING. CAN'T CREATE FILE: %s. ERR: %s;\n", cmd.args[0], err)
+				}
+
+				KVCache.Mut.RLock()
+				data, err := json.Marshal(&KVCache)
+				KVCache.Mut.RUnlock()
+
+				if err != nil {
+					fmt.Printf("ERR:AUTOSAVING. ENCODE ERR: %s;\n", err)
+				}
+
+				_, err = file.Write(data)
+				if err != nil {
+					fmt.Printf("ERR:AUTOSAVING. WRITING TO FILE ERR: %s;\n", err)
+				}
+				file.Close()
+
+				if len(KVCache.autoSaveTimeDurationChan) > 0 {
+					el = <-KVCache.autoSaveTimeDurationChan
+				}
+
+				KVCache.autoSaveTimeDurationChan <- time.Duration(el)
+				time.Sleep(el)
+			}
+		}()
+
+		if interval == time.Duration(0) {
+			KVCache.Mut.Lock()
+			KVCache.autosaveIndicator = false
+			KVCache.Mut.Unlock()
+			return fmt.Sprint("Autosave is off."), nil
+		}
+
+		return fmt.Sprintf("Autosave is on. Interval - %v", interval), nil
 	},
 
 	//restoreData - restore database with help of json formated string(from file).
@@ -189,13 +270,13 @@ var commands = map[string]func(*KVCache, *command) (string, error){
 		}
 		defer file.Close()
 
-		slice, err := ioutil.ReadAll(file)
+		data, err := ioutil.ReadAll(file)
 		if err != nil {
 			return "", fmt.Errorf("ERR: READING FROM FILE: %s. ERR: %s;", cmd.args[0], err)
 		}
 
 		newCache := newKVCache()
-		err = json.Unmarshal(slice, &newCache)
+		err = json.Unmarshal(data, &newCache)
 		if err != nil {
 			return "", fmt.Errorf("ERR: UNMARSHAL ERR: %s;", err)
 		}
@@ -203,9 +284,12 @@ var commands = map[string]func(*KVCache, *command) (string, error){
 		KVCache.Mut.Lock()
 		KVCache.DataStore = newCache.DataStore
 		KVCache.ExpKeys = newCache.ExpKeys
+		for k := range KVCache.ExpKeys.ByTimeMap {
+			KVCache.ExpKeys.TimePriorityQueue.Push(&ExpTime{value: k})
+		}
 		KVCache.Mut.Unlock()
 
-		log.Println("UNMARSHALED AND RESTOREd: \n" + string(slice))
+		log.Println("UNMARSHALED AND RESTOREd: \n" + string(data))
 		return "true", nil
 	},
 
@@ -244,9 +328,11 @@ type command struct {
 
 //KVCache - main struct to store all possible information about our database.
 type KVCache struct {
-	Mut       *sync.RWMutex
-	DataStore map[string]*Value //main database
-	ExpKeys   *onExpiration     //information about keys with a set expiration date
+	Mut                      *sync.RWMutex
+	DataStore                map[string]*Value //main database
+	ExpKeys                  *onExpiration     //information about keys with a set expiration date
+	autoSaveTimeDurationChan chan time.Duration
+	autosaveIndicator        bool
 }
 
 //Value - describes value set to key in Rcache.DataStore
@@ -258,7 +344,8 @@ type Value struct {
 
 //newRcache - creates and returns *Rcache instance
 func newKVCache() *KVCache {
-	return &KVCache{&sync.RWMutex{}, make(map[string]*Value), newOnExpiration()}
+	return &KVCache{&sync.RWMutex{}, make(map[string]*Value), newOnExpiration(),
+		make(chan time.Duration, 1), false}
 }
 
 //newValue - creates and returns *Value instance
@@ -270,11 +357,14 @@ func (KVCache *KVCache) String() string {
 	KVCache.Mut.RLock()
 	defer KVCache.Mut.RUnlock()
 
-	res := "\nData store:\n"
+	res := fmt.Sprint("=================================")
+	res = "\nData store:\n"
 	for k, v := range KVCache.DataStore {
 		res = fmt.Sprint(res, "{", k, " : ", v, "}\n")
 	}
 	res = fmt.Sprint(res, KVCache.ExpKeys)
+	res = fmt.Sprint(res, "=================================")
+
 	return res
 }
 
@@ -296,15 +386,15 @@ func validateArgsCount(cmd *command, n int) error {
 	return nil
 }
 
-//validateExpirationValue validate if value set as expiration date for key is correct
-func validateExpirationValue(Value string) (time.Duration, error) {
+//validateTimeDuration validate if value set as expiration date for key is correct
+func validateTimeDuration(Value string) (time.Duration, error) {
 	n, err := strconv.Atoi(Value)
 	if err != nil {
-		return time.Second, err
+		return time.Duration(0), err
 	}
 
 	if n < 0 {
-		return time.Second, fmt.Errorf("ERR: USE POSITIVE VALUE TO SET EXPIRATION. NEITHER: %d", n)
+		return time.Duration(0), fmt.Errorf("ERR: USE POSITIVE VALUE TO SET TIME. NEITHER: %d", n)
 	}
 
 	return time.Duration(n) * time.Second, nil

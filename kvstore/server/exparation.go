@@ -10,9 +10,9 @@ import (
 //onExpiration - store info about keys with set expiration date
 type onExpiration struct {
 	Mut               *sync.Mutex
-	ByKeyMap          map[string]*ExpTime   //key - key from main database, value - expiration time
-	ByTimeMap         map[*ExpTime][]string //key - expiration date, value - slice of keys from main database
-	TimePriorityQueue *PriorityQueue        //priority queue
+	ByKeyMap          map[string]*ExpTime    //key - key from main database, value - expiration time
+	ByTimeMap         map[time.Time][]string //key - expiration date, value - slice of keys from main database
+	TimePriorityQueue *PriorityQueue         //priority queue
 }
 
 //ExpTime store expiration date and it's index in priority queue
@@ -30,7 +30,7 @@ func (ExpKeys *onExpiration) String() string {
 
 	res = fmt.Sprint(res, "by time map:\n")
 	for k, v := range ExpKeys.ByTimeMap {
-		res = fmt.Sprint(res, "{", k.value, " : ", v, "}\n")
+		res = fmt.Sprint(res, "{", k, " : ", v, "}\n")
 	}
 
 	res = fmt.Sprint(res, "time priority queue:\n")
@@ -42,7 +42,7 @@ func (ExpKeys *onExpiration) String() string {
 func newOnExpiration() *onExpiration {
 	var TimePriorityQueue = make(PriorityQueue, 0)
 	heap.Init(&TimePriorityQueue)
-	return &onExpiration{&sync.Mutex{}, make(map[string]*ExpTime), make(map[*ExpTime][]string), &TimePriorityQueue}
+	return &onExpiration{&sync.Mutex{}, make(map[string]*ExpTime), make(map[time.Time][]string), &TimePriorityQueue}
 }
 
 //addExpirationForKey - add exparaiontion for key
@@ -58,7 +58,7 @@ func (ExpKeys *onExpiration) addExpirationForKey(key string, expTime time.Time) 
 	}
 
 	ExpKeys.ByKeyMap[key] = timeItem
-	ExpKeys.ByTimeMap[timeItem] = append(ExpKeys.ByTimeMap[timeItem], key)
+	ExpKeys.ByTimeMap[timeItem.value] = append(ExpKeys.ByTimeMap[timeItem.value], key)
 	heap.Push(ExpKeys.TimePriorityQueue, timeItem)
 	ExpKeys.Mut.Unlock()
 }
@@ -80,8 +80,8 @@ func (ExpKeys *onExpiration) getExpiredKeys(tillTime time.Time) []string {
 		timeItem := ExpKeys.TimePriorityQueue.Peek()
 
 		if timeItem.value.Before(tillTime) {
-			keysToReturn = append(keysToReturn, ExpKeys.ByTimeMap[heap.Pop(ExpKeys.TimePriorityQueue).(*ExpTime)]...)
-			delete(ExpKeys.ByTimeMap, timeItem)
+			keysToReturn = append(keysToReturn, ExpKeys.ByTimeMap[heap.Pop(ExpKeys.TimePriorityQueue).(*ExpTime).value]...)
+			delete(ExpKeys.ByTimeMap, timeItem.value)
 			continue
 		}
 		break
@@ -102,7 +102,7 @@ func removeExpiredKey(key string, ExpKeys *onExpiration) {
 	if ok {
 		delete(ExpKeys.ByKeyMap, key)
 
-		keySlice := ExpKeys.ByTimeMap[timeItem]
+		keySlice := ExpKeys.ByTimeMap[timeItem.value]
 
 		for i, k := range keySlice {
 			if k == key {
@@ -111,11 +111,11 @@ func removeExpiredKey(key string, ExpKeys *onExpiration) {
 			}
 		}
 		if len(keySlice) == 0 {
-			delete(ExpKeys.ByTimeMap, timeItem)
+			delete(ExpKeys.ByTimeMap, timeItem.value)
 			heap.Remove(ExpKeys.TimePriorityQueue, timeItem.index)
 			return
 		}
-		ExpKeys.ByTimeMap[timeItem] = keySlice
+		ExpKeys.ByTimeMap[timeItem.value] = keySlice
 	}
 }
 
