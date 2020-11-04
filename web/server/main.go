@@ -23,7 +23,7 @@ func main() {
 		io.WriteString(w, counter(mc, req))
 	}
 
-	sqlBaseAsString := func(w http.ResponseWriter, req *http.Request) {
+	printBases := func(w http.ResponseWriter, req *http.Request) {
 		result := "SQL:\n"
 		result = fmt.Sprint(result, showSQLbase(mc), "Redis:\n", showRDB(mc))
 		io.WriteString(w, result)
@@ -31,7 +31,7 @@ func main() {
 
 	http.HandleFunc("/favicon.ico", favIconHandler)
 	http.HandleFunc("/", countHandler)
-	http.HandleFunc("/showbase", sqlBaseAsString)
+	http.HandleFunc("/showbase", printBases)
 	log.Fatal(http.ListenAndServe(":3000", nil))
 }
 
