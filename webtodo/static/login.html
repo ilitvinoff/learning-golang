@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>ToDo/Ш++</title>
+    <link rel="stylesheet" href="login.css">
+    <link href="https://fonts.googleapis.com/css?family=Oswald&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/vue/dist/vue.js"></script>
+</head>
+<body>
+<div id="app">
+    <div class="Login">
+        <h1>ToDo<span style="color: darkgreen">/</span>Ш++</h1>
+        <div class="LoginInput">
+            <input v-model="nickName" type="text" placeholder="Nickname" autofocus required>
+            <input v-model="pass" type="password" placeholder="Password" autofocus required>
+        </div>
+        <div class="LoginButton">
+            <button @click="register()">Register</button>
+            <button @click="login()">Login</button>
+        </div>
+    </div>
+</div>
+<script>
+	const url = "http://127.0.0.1:3000/";
+	const site = "http://127.0.0.1:3000/usersession/index.html";
+	let vue = new Vue({
+		el: '#app',
+		data: {
+			nickName: '',
+            pass: ''
+		},
+		methods: {
+			login(){
+				if(this.nickName.trim() !== '' && this.pass.trim()) {
+					let request = JSON.stringify({login: this.nickName, pass: this.pass});
+					var xmlhttp = new XMLHttpRequest();   // new HttpRequest instance 
+					xmlhttp.onreadystatechange = function() {
+					    if (this.readyState == 4 && this.status == 200) {
+						let response = JSON.parse(this.response);
+						console.dir(xmlhttp.getResponseHeader('Set-Cookie'));
+						if (response.ok) {
+								localStorage.setItem('name', request.login);
+								window.location = site;
+							} else {
+								alert("Error 500. Internal server error. Please try again later")
+							}
+					    }
+					};
+					xmlhttp.open("POST", url + 'login');
+					xmlhttp.withCredentials = true;
+					xmlhttp.setRequestHeader("Content-Type", "application/json;");
+					xmlhttp.send(request);
+				}},
+			register(){
+				if(this.nickName.trim() !== '' && this.pass.trim()) {
+				let request = JSON.stringify({login: this.nickName, pass: this.pass});
+				fetch(url + 'register', {
+					method: 'POST',
+					body: request,
+					headers: {
+						'Content-Type': 'application/json;'
+					},
+				}).then(res => res.json())
+					.then((response) => {
+						if (response.ok) {
+							this.nickName = '';
+							this.pass = '';
+							alert('Gratz, u r registered)')
+
+						} else {
+							alert("Error 500. Internal server error. Please try again later")
+						}
+					});
+			}},
+		},
+		mounted() {
+
+		},
+	});
+</script>
+</body>
+</html>

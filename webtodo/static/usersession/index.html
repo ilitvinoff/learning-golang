@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:v-on="http://www.w3.org/1999/xhtml">
+<head>
+    <meta charset="UTF-8">
+    <title>Title</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/vue/dist/vue.js"></script>
+</head>
+<body>
+<div id="app">
+    <div class="User">
+        <div class="UserImg">
+            <img src="UserName.png" width="40px" height="40px">
+        </div>
+            <div class="UserName">
+                <h3>User</h3>
+                <button @click="exit()" style="text-decoration: none; color: #f7f7f7; font-size: 18px; font-weight: 600; background-color: #2e2e2e">Exit &#128682;</button>
+            </div>
+    </div>
+    <section class="todoapp">
+        <header class="header">
+            <h1 style="display: flex; font-size: 70px; margin: 0 auto; padding-left: 15px;">ToDo_List<span style="color: limegreen"> / </span>Ш++</h1>
+            <label>
+                <input v-on:keyup.enter="add_task()"
+                       class="new_todo"
+                       autofocus autocomplete="on"
+                       placeholder="Тут можно что-то написать)))"
+                       type="text"
+                       v-model="new_task.text">
+                <span><button @click="add_task()" class="button new_todo_button">ДОБАВИТЬ</button></span>
+            </label>
+        </header>
+        <main>
+            <div class="status">
+                <h3 class="status_title">{{'Активные задачи: ' + items.length}}</h3>
+                <task @task_del="del(data.id)"
+                      @task_edit="task_edit(index)"
+                      @task_done="task_done(index, data.id)"
+                      @save="save(index, data.id)"
+                      @disable="disable(index)"
+                      :data="data"
+                      v-for="(data, index) in items"
+                      :key="index"></task>
+            </div>
+        </main>
+    </section>
+</div>
+<script src="script.js"></script>
+</body>
+</html>

@@ -1,0 +1,186 @@
+*{
+    padding: 0;
+    margin: 0;
+}
+h1{
+    padding-top: 80px;
+    margin-left: -40px;
+    display: flex;
+    flex-direction: row;
+    font-size: 80px;
+}
+h1 > span{
+    font-size: 80px;
+    margin-left: 5px;
+    margin-right: 5px;
+}
+html,
+body {
+    margin: 0;
+    padding: 0;
+}
+
+button {
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: none;
+    font-size: 100%;
+    vertical-align: baseline;
+    font-family: inherit;
+    font-weight: inherit;
+    color: inherit;
+    -webkit-appearance: none;
+    appearance: none;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+    font: 14px 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    line-height: 1.4em;
+    background: #f5f5f5;
+    color: #4d4d4d;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    font-weight: 300;
+}
+
+:focus {
+    outline: 0;
+}
+
+.hidden {
+    display: none;
+}
+
+.todoapp {
+    background: #fff;
+    position: relative;
+    box-shadow: 0 2px 4px 0 rgba(0, 0, 0, 0.2),
+    0 25px 50px 0 rgba(0, 0, 0, 0.1);
+    min-width: 150px;
+    max-width: 600px;
+    margin: 133px auto 0;
+}
+
+.todoapp input::-webkit-input-placeholder {
+    font-style: italic;
+    font-weight: 300;
+    color: #e6e6e6;
+}
+
+.todoapp input::-moz-placeholder {
+    font-style: italic;
+    font-weight: 300;
+    color: #e6e6e6;
+}
+
+.todoapp h1 {
+    position: absolute;
+    top: -155px;
+    font-size: 100px;
+    font-weight: 100;
+    text-align: center;
+    color: #4d4d4d;
+}
+
+.new_todo,
+.edit {
+    position: relative;
+    margin: 0;
+    width: 100%;
+    font-size: 24px;
+    font-family: inherit;
+    font-weight: inherit;
+    line-height: 1.4em;
+    color: inherit;
+    padding: 6px;
+    border: 1px solid #999;
+    box-shadow: inset 0 -1px 5px 0 rgba(0, 0, 0, 0.8);
+    box-sizing: border-box;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+.new_todo {
+    padding: 16px 16px 16px 60px;
+    border: none;
+    background: rgba(0, 0, 0, 0.6);
+    box-shadow: inset 0 -2px 1px rgba(0,0,0,0.08);
+    color: #f7f7f7;
+}
+.new_todo_button{
+    width: 100%;
+    height: 100%;
+    padding: 10px;
+    background-color: lightgreen;
+    text-align: center;
+}
+
+main{
+    background-color: rgba(255, 255, 255, 0);
+}
+.task{
+    display: flex;
+    flex-direction: row;
+    padding: 16px;
+    background-color: #ececec;
+    border-bottom: #cd1537 solid 3px;
+    margin-top: 10px;
+}
+.taskFalse{
+    border-bottom: limegreen solid 3px;
+}
+.task_content{
+    width: 80%;
+    height: 80%;
+    position: relative;
+}
+.button{
+    display: flex;
+    flex-direction: row;
+    margin: 0 0 0 auto;
+}
+.check{
+    position: absolute;
+    margin-left: 80%;
+}
+button{
+    cursor: pointer;
+    padding-left: 3px;
+    padding-right: 3px;
+    margin-top: -5px;
+}
+.task_done{
+    cursor: pointer;
+    margin-top: -7px;
+}
+.task_edit{
+    cursor: pointer;
+}
+.task_none{
+    cursor: pointer;
+}
+.status h3{
+    padding: 16px;
+}
+label{
+    display: flex;
+    flex-direction: row;
+}
+p{
+    font-size: 20px;
+}
+.contentText{
+    display: flex;
+    flex-direction: row;
+}
+.User{
+    display: flex;
+    flex-direction: row;
+    position: absolute;
+    padding-top: -200px;
+    margin-top: -120px;
+    padding-left: 85%;
+}
