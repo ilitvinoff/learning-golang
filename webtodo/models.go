@@ -133,7 +133,7 @@ func (user *user) addItem(env *envState, jsonStr []byte) (string, error) {
 		return "", err
 	}
 
-	return fmt.Sprintf("{ id: %v }", ID), nil
+	return fmt.Sprintf("{id: %v}", ID), nil
 }
 
 func (user *user) changeItem(env *envState, jsonStr []byte) (string, error) {

@@ -104,7 +104,7 @@ func getItemsHandler(w http.ResponseWriter, req *http.Request) {
 	userSession := &sessionExpiration{user.Name, cookie.Expires}
 
 	if checkIfSessionExpired(env, userSession, req) {
-		endSessionWithCookie(w, req, cookie)
+		endSessionWithCookie(w, req, cookie, userSession)
 		http.Error(w, "ERR: session expired.", http.StatusUnauthorized)
 		log.Printf("ERR: session expired. user: %v; url: %v;\n", user.Name, req.URL.Path)
 		return
@@ -145,7 +145,7 @@ func deleteItemHandler(w http.ResponseWriter, req *http.Request) {
 	userSession := &sessionExpiration{user.Name, cookie.Expires}
 
 	if checkIfSessionExpired(env, userSession, req) {
-		endSessionWithCookie(w, req, cookie)
+		endSessionWithCookie(w, req, cookie, userSession)
 		http.Error(w, "ERR: session expired.", http.StatusUnauthorized)
 		log.Printf("ERR: session expired. user: %v; url: %v;\n", user.Name, req.URL.Path)
 		return
@@ -184,7 +184,7 @@ func addItemHandler(w http.ResponseWriter, req *http.Request) {
 	userSession := &sessionExpiration{user.Name, cookie.Expires}
 
 	if checkIfSessionExpired(env, userSession, req) {
-		endSessionWithCookie(w, req, cookie)
+		endSessionWithCookie(w, req, cookie, userSession)
 		http.Error(w, "ERR: session expired.", http.StatusUnauthorized)
 		log.Printf("ERR: session expired. user: %v; url: %v;\n", user.Name, req.URL.Path)
 		return
@@ -197,6 +197,7 @@ func addItemHandler(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
+	fmt.Println("add ID: " + res)
 	fmt.Fprint(w, res)
 
 	log.Printf("addItemHandler; user: %v; remote addr: %v; request: %v; response: %v;\n", user.Name, req.RemoteAddr, string(jsonStr), res)
@@ -224,7 +225,7 @@ func changeItemHandler(w http.ResponseWriter, req *http.Request) {
 	userSession := &sessionExpiration{user.Name, cookie.Expires}
 
 	if checkIfSessionExpired(env, userSession, req) {
-		endSessionWithCookie(w, req, cookie)
+		endSessionWithCookie(w, req, cookie, userSession)
 		http.Error(w, "ERR: session expired.", http.StatusUnauthorized)
 		log.Printf("ERR: session expired. user: %v; url: %v;\n", user.Name, req.URL.Path)
 		return
@@ -255,7 +256,9 @@ func logoutHandler(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	endSessionWithCookie(w, req, cookie)
+	userSession := &sessionExpiration{cookie.Value, cookie.Expires}
+
+	endSessionWithCookie(w, req, cookie, userSession)
 	res := "{ \"ok\" : true }"
 	fmt.Fprint(w, res)
 
@@ -273,10 +276,18 @@ func checkIfSessionExpired(env *envState, se *sessionExpiration, req *http.Reque
 	expireTime, err := se.getSessionExpTime(env)
 	if err != nil {
 		log.Printf("ERR: can't `getSessionExpTime`. Err: %v; User: %v; URL: %v;\n", err, se.id, req.RemoteAddr)
+		err = se.deleteSession(env)
+		if err != nil {
+			log.Printf("ERR: can't `deleteSession`. Err: %v; User: %v; URL: %v;\n", err, se.id, req.RemoteAddr)
+		}
 		return true
 	}
 
 	if expireTime.Before(se.date) {
+		err = se.deleteSession(env)
+		if err != nil {
+			log.Printf("ERR: can't `deleteSession`. Err: %v; User: %v; URL: %v;\n", err, se.id, req.RemoteAddr)
+		}
 		return true
 	}
 
@@ -326,7 +337,12 @@ func readBody(w http.ResponseWriter, req *http.Request) ([]byte, error) {
 	return body, nil
 }
 
-func endSessionWithCookie(w http.ResponseWriter, req *http.Request, cookie *http.Cookie) {
+func endSessionWithCookie(w http.ResponseWriter, req *http.Request, cookie *http.Cookie, se *sessionExpiration) {
 	cookie.Expires = time.Now().Add(-30 * time.Minute)
 	http.SetCookie(w, cookie)
+
+	err := se.deleteSession(env)
+	if err != nil {
+		log.Printf("ERR: can't `deleteSession`. Err: %v; User: %v; URL: %v;\n", err, se.id, req.RemoteAddr)
+	}
 }
