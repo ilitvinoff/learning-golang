@@ -9,19 +9,24 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+type result struct {
+	ID int  `json:"id"`
+	Ok bool `json:"ok"`
+}
+
 type user struct {
 	Name string `json:"login"`
 	Pass string `json:"pass"`
 }
 
-func (user *user) marshalUser() (string, error) {
-	res, err := json.Marshal(user)
+func marshal(i interface{}) (string, error) {
+	res, err := json.Marshal(i)
 	return string(res), err
 }
 
-func unmarshalUser(userJSON string) (*user, error) {
+func unmarshal(value string) (*user, error) {
 	res := &user{}
-	err := json.Unmarshal([]byte(userJSON), res)
+	err := json.Unmarshal([]byte(value), res)
 	return res, err
 }
 
@@ -34,22 +39,24 @@ func (user *user) Exists(env *envState) bool {
 	return indicator == 1
 }
 
-func (user *user) register(env *envState) bool {
+func (user *user) register(env *envState) (string, error) {
 	hash, err := bcrypt.GenerateFromPassword([]byte(user.Pass), bcrypt.DefaultCost)
 	if err != nil {
-		log.Printf("ERR: Crypt password error: {%v}; user: %v\n", err, user.Name)
-		return false
+		return "", fmt.Errorf("crypt password error: {%v}; user: %v", err, user.Name)
 	}
 
 	if !user.Exists(env) {
 		_, err := env.sqlDB.Exec("insert into todoDB.users (name,pass) values(?,?)", user.Name, string(hash))
 		if err != nil {
-			log.Printf("ERR: can't add user to database. User name: %v; query err: {%v}\n", user.Name, err)
-			return false
+			return "", fmt.Errorf("can't add user to database. User name: %v; query err: {%v}", user.Name, err)
 		}
-		return true
+		res, err := marshal(result{Ok: true})
+		if err != nil {
+			err = fmt.Errorf("can't marshal when register.User name: %v; err: {%v}", user.Name, err)
+		}
+		return res, err
 	}
-	return false
+	return "", fmt.Errorf("register failed. User already exists.User name: %v; err: {%v}", user.Name, err)
 }
 
 func (user *user) login(env *envState) bool {
@@ -133,7 +140,12 @@ func (user *user) addItem(env *envState, jsonStr []byte) (string, error) {
 		return "", err
 	}
 
-	return fmt.Sprintf("{id: %v}", ID), nil
+	res, err := marshal(result{ID: ID})
+	if err != nil {
+		return "", err
+	}
+
+	return res, nil
 }
 
 func (user *user) changeItem(env *envState, jsonStr []byte) (string, error) {
@@ -148,7 +160,12 @@ func (user *user) changeItem(env *envState, jsonStr []byte) (string, error) {
 		return "", err
 	}
 
-	return "{ \"ok\" : true }", nil
+	res, err := marshal(result{Ok: true})
+	if err != nil {
+		return "", err
+	}
+
+	return res, nil
 }
 
 func (user *user) deleteItem(env *envState, jsonStr []byte) (string, error) {
@@ -163,7 +180,12 @@ func (user *user) deleteItem(env *envState, jsonStr []byte) (string, error) {
 		return "", err
 	}
 
-	return "{ \"ok\" : true }", nil
+	res, err := marshal(result{note.ID, true})
+	if err != nil {
+		return "", err
+	}
+
+	return res, nil
 }
 
 type sessionExpiration struct {
