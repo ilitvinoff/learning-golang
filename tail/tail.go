@@ -71,8 +71,6 @@ func TailF(config *config) {
 func setCursorPos(c *config, filepath string) {
 	if c.readFromBeginning {
 		c.tailConfig.Location = &tail.SeekInfo{Offset: 0, Whence: 0}
-
-		fmt.Println("file:", filepath, "n:", c.n, "seek", c.tailConfig.Location)
 		return
 	}
 
@@ -101,8 +99,6 @@ func setCursorPos(c *config, filepath string) {
 	}
 
 	c.tailConfig.Location = &tail.SeekInfo{Offset: cursor + 1, Whence: 2}
-	fmt.Println("file:", filepath, "n:", c.n, "seek", c.tailConfig.Location)
-
 }
 
 func getTailer(path string, tailConfig tail.Config) *tail.Tail {
