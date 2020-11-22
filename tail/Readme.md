@@ -7,7 +7,7 @@ Added functionality:
 1. You can "tail" multiple files at the same time. This way, you can define a "prefix" for each file, 
    which will be printed before the line from the corresponding file.
 2. If file - doesn't exist -> wait for it to appear
-3. If the file has been deleted / moved -> wait for a new one to appear. When new one appeared, tailing starts from the begingng of the file.
+3. If the file has been deleted / moved -> wait for a new one to appear. When new one appeared, tailing starts from the begining of the file.
 4. You may select directory and define the regular expression(for file name).
    This way, 'tailer' will keep track of the last file that came up that matches the regular expression.
 
