@@ -26,8 +26,8 @@ type myTailConfig struct {
 	wg        sync.WaitGroup
 }
 
-//ParallelTail ...
-func ParallelTail(t *myTailConfig) {
+//ConcurentTail ...
+func ConcurentTail(t *myTailConfig) {
 	for _, cfg := range t.configArr {
 		t.wg.Add(1)
 		go masterTail(cfg, t)
@@ -45,18 +45,18 @@ func masterTail(config *config, t *myTailConfig) {
 //TailF ...
 func TailF(config *config) {
 	for {
-		err := waitForPathExists(config, config.isFilepath)
+		err := waitForPathExists(config)
 		logFatalIfError(err)
 
 		filepath := config.path
 
 		if !config.isFilepath {
-			filepath, err = getPathWithRegex(config)
+			filepath, err = getYongestFilepathMatchedRegex(config)
 			logFatalIfError(err)
 		}
 
 		setCursorPos(config, filepath)
-		w := initiateWatcher(config, !config.isFilepath)
+		w := initiateWatcher(config)
 		t := getTailer(filepath, *config.tailConfig)
 
 		go startWatcher(config, w, t)
@@ -113,7 +113,7 @@ func logFatalIfError(err error) {
 	}
 }
 
-func waitForPathExists(config *config, isFilepath bool) error {
+func waitForPathExists(config *config) error {
 START:
 	dir, err := os.Stat(config.path)
 	if err != nil {
@@ -124,21 +124,21 @@ START:
 		return err
 	}
 
-	if !isFilepath && !dir.IsDir() {
+	if !config.isFilepath && !dir.IsDir() {
 		return fmt.Errorf("given path is not directory! path: %v", config.path)
 	}
 
 	return nil
 }
 
-func getPathWithRegex(config *config) (string, error) {
+func getYongestFilepathMatchedRegex(config *config) (string, error) {
 	for {
-		candidates, err := getFilesFromDir(config.path)
+		candidates, err := getFileListFromDir(config.path)
 		if err != nil {
 			return "", err
 		}
 
-		matchedCandidates, err := getMatchedRegexFiles(candidates, config.regex)
+		matchedCandidates, err := getMatchedRegexFilesFromList(candidates, config.regex)
 		if err != nil {
 			return "", err
 		}
@@ -157,7 +157,7 @@ func getPathWithRegex(config *config) (string, error) {
 	}
 }
 
-func getFilesFromDir(path string) ([]os.FileInfo, error) {
+func getFileListFromDir(path string) ([]os.FileInfo, error) {
 	files, err := ioutil.ReadDir(path)
 	res := []os.FileInfo{}
 	if err != nil {
@@ -173,7 +173,7 @@ func getFilesFromDir(path string) ([]os.FileInfo, error) {
 	return res, nil
 }
 
-func getMatchedRegexFiles(files []os.FileInfo, regex string) ([]os.FileInfo, error) {
+func getMatchedRegexFilesFromList(files []os.FileInfo, regex string) ([]os.FileInfo, error) {
 	matchedCandidates := []os.FileInfo{}
 	for _, file := range files {
 		matched, err := regexp.MatchString(regex, file.Name())

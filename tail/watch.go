@@ -8,7 +8,7 @@ import (
 	"github.com/radovskyb/watcher"
 )
 
-func initiateWatcher(config *config, isRegexPresent bool) *watcher.Watcher {
+func initiateWatcher(config *config) *watcher.Watcher {
 	w := watcher.New()
 
 	// SetMaxEvents to 1 to allow at most 1 event's to be received
@@ -22,7 +22,7 @@ func initiateWatcher(config *config, isRegexPresent bool) *watcher.Watcher {
 
 	// Only files that match the regular expression during file listings
 	// will be watched.
-	if isRegexPresent {
+	if !config.isFilepath {
 		r := regexp.MustCompile(config.regex)
 		w.AddFilterHook(watcher.RegexFilterHook(r, false))
 	}
