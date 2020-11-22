@@ -15,8 +15,8 @@ Warning!!!!
 You need to describe parameters of each flag with 1 stringline. So, for example you need to tail 2 files, then both files
 you'll describe in one string, using semicolon, as delimiter.
 
-Example:
-./tail -p "filepath1;prefix for output from file1;filepath2;prefix for output from file2..."
+   Example:
+   ./tail -p "filepath1;prefix for output from file1;filepath2;prefix for output from file2..."
 
 Warning!!!
 Do not use semicolon at the end of argument line.
@@ -31,7 +31,7 @@ Flag's description:
     	 prefix - prefix to printout before line from file
     	 n: output the last 'n' lines,may be empty string(Must be integer if present!!!)
 
-    	Example: tail -c "foo/bar/file1;regexForFile1;prefix1;someinteger;foo/bar/file2;regexForFile2;prefix2;someinteger..."
+    	Example: ./tail -c "foo/bar/file1;regexForFile1;prefix1;someinteger;foo/bar/file2;regexForFile2;prefix2;someinteger..."
     	Warning!!!! Do not use semicolon at the end of argument line.
     	
   -n (Number of lines to standard output.)
@@ -43,14 +43,14 @@ Flag's description:
     	You may specify prefix to printout it before textline from file, using semicolon as delimiter. Example: tail -p "foo/bar/file;prefix"
     	If you want to specify more then 1 file, you need to define both parameters(file's path;prefix) for each file in one string.
       
-    	Example: tail -p "foo/bar/file1;prefix1;foo/bar/file2;prefix2;foo/bar/file3;prefix3..."
+    	Example: ./tail -p "foo/bar/file1;prefix1;foo/bar/file2;prefix2;foo/bar/file3;prefix3..."
     	Warning!!!! Do not use semicolon at the end of argument line.
     	
   -r (when you select a directory where the tailer will keep track of the file matching the regex you defined)
     	Filename regular expression pattern. If you want to specify 1 file to tail, 2 arguments are enough - "pathToDirectory;regex".
     	If you want to specify more then 1 file, you need to define 3 arguments for each file:
       
-    	Example: tail -r "foo/bar/file1;regexForFile1;prefix1;foo/bar/file2;regexForFile2;prefix2;foo/bar/file3;regexForFile3;prefix3..."
+    	Example: ./tail -r "foo/bar/file1;regexForFile1;prefix1;foo/bar/file2;regexForFile2;prefix2;foo/bar/file3;regexForFile3;prefix3..."
     	Warning!!!! Do not use semicolon at the end of argument line.
 
 
