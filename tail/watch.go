@@ -18,7 +18,7 @@ func initiateWatcher(config *config) *watcher.Watcher {
 	w.SetMaxEvents(1)
 
 	// Only notify rename and move events.
-	w.FilterOps(watcher.Rename, watcher.Move, watcher.Create, watcher.Remove, watcher.Write)
+	w.FilterOps(watcher.Rename, watcher.Move, watcher.Create, watcher.Remove)
 
 	// Only files that match the regular expression during file listings
 	// will be watched.
