@@ -103,9 +103,15 @@ func (c *configFlag) Set(value string) error {
 	}
 
 	for i := 0; i < argsLength; {
-		offset, err := strconv.Atoi(args[i+3])
-		if err != nil {
-			return fmt.Errorf("wrong value set for amount of strings to tail from: %v", err)
+		var err error
+		offset := nDefaultValue
+
+		if args[i+3] != "" {
+
+			offset, err = strconv.Atoi(args[i+3])
+			if err != nil {
+				return fmt.Errorf("wrong value set for amount of strings to tail from: %v", err)
+			}
 		}
 
 		cfg := getDefaultConfig()
@@ -140,7 +146,7 @@ func getConfigFromFlags() []*config {
 	var n int
 
 	flag.Usage = func() {
-		fmt.Fprintf(os.Stderr, "Usage: tail -flag \"configuration string\" -flag1 \"configuration string\"...\n	Print the last 10 lines of each FILE to standard output.\n\nThe basic functionality is the same as the standard tail utility started with '-F' flag.\n\nAdded functionality:\n	1. You can \"tail\" multiple files at the same time. This way, you can define a \"prefix\" for each file, \n	which will be printed before the line from the corresponding file.\n	2. If file - doesn't exist -> wait for it to appear\n	3. If the file has been deleted / moved -> wait for a new one to appear. When new one appeared, tailing starts from the begining of the file.\n	4. You may select directory and define the regular expression(for file name).\n	This way, 'tailer' will keep track of the last file that came up that matches the regular expression.\n\nWarning!!!!\nYou need to describe parameters of each flag with 1 stringline. So, for example you need to tail 2 files, then both files\nyou'll describe in one string, using semicolon, as delimiter.\n\n	Example:\n	./tail -p \"filepath1;prefix for output from file1;filepath2;prefix for output from file2...\"\n\nWarning!!!\nDo not use semicolon at the end of argument line. %s:\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "Usage: tail -flag \"configuration string\" -flag1 \"configuration string\"...\n	Print the last 10 lines of each FILE to standard output.\n\nThe basic functionality is the same as the standard tail utility started with '-F' flag.\n\nAdded functionality:\n	1. You can \"tail\" multiple files at the same time. This way, you can define a \"prefix\" for each file, \n	which will be printed before the line from the corresponding file.\n	2. If file - doesn't exist -> wait for it to appear\n	3. If the file has been deleted / moved -> wait for a new one to appear. When new one appeared, tailing starts from the begining of the file.\n	4. You may select directory and define the regular expression(for file name).\n	This way, 'tailer' will keep track of the last file that came up that matches the regular expression.\n\nWarning!!!!\nYou need to describe parameters of each flag with 1 stringline. So, for example you need to tail 2 files, then both files\nyou'll describe in one string, using semicolon, as delimiter.\n\n	Example:\n	./tail -p \"filepath1;prefix for output from file1;filepath2;prefix for output from file2...\"\n\nWarning!!!\nDo not use semicolon at the end of argument line.\n\n Available flags:\n")
 
 		flag.VisitAll(func(f *flag.Flag) {
 			fmt.Fprintf(os.Stderr, "	-%v\n%v\n", f.Name, f.Usage) // f.Name, f.Value
