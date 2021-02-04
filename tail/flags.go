@@ -37,7 +37,7 @@ func (p *pathFlag) Set(value string) error {
 	for i := 0; i < argsLength; {
 		cfg := getDefaultConfig()
 		cfg.path = args[i]
-		cfg.prefix = args[i+1]
+		cfg.userPrefix = args[i+1]
 		cfg.isFilepath = true
 		*p = append(*p, cfg)
 		i += 2
@@ -78,7 +78,7 @@ func (r *regexFlag) Set(value string) error {
 		cfg := getDefaultConfig()
 		cfg.path = args[i]
 		cfg.regex = args[i+1]
-		cfg.prefix = args[i+2]
+		cfg.userPrefix = args[i+2]
 		*r = append(*r, cfg)
 		i += 3
 	}
@@ -117,7 +117,7 @@ func (c *configFlag) Set(value string) error {
 		cfg := getDefaultConfig()
 		cfg.path = args[i]
 		cfg.regex = args[i+1]
-		cfg.prefix = args[i+2]
+		cfg.userPrefix = args[i+2]
 		cfg.n = offset
 		if cfg.regex == "" {
 			cfg.isFilepath = true

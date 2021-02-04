@@ -62,7 +62,9 @@ func TailF(config *config) {
 		go startWatcher(config, w, t)
 
 		for line := range t.Lines {
-			fmt.Println(config.prefix, line.Text)
+			if config.isFilepath {
+			}
+			fmt.Println(config.messagePrefix, line.Text)
 		}
 		t.Cleanup()
 	}
@@ -128,6 +130,8 @@ START:
 		return fmt.Errorf("given path is not directory! path: %v", config.path)
 	}
 
+	config.messagePrefix = config.userPrefix
+
 	return nil
 }
 
@@ -152,6 +156,8 @@ func getYongestFilepathMatchedRegex(config *config) (string, error) {
 		for _, file := range matchedCandidates {
 			res = compareWhichYonger(res, file, config)
 		}
+
+		config.messagePrefix = config.userPrefix + " {filename: " + res.Name() + "}"
 
 		return filepath.Join(config.path, res.Name()), nil
 	}
