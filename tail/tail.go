@@ -10,7 +10,6 @@ import (
 	"path/filepath"
 	"regexp"
 	"sync"
-	"syscall"
 	"time"
 
 	"github.com/hpcloud/tail"
@@ -117,12 +116,15 @@ func logFatalIfError(err error) {
 
 func waitForPathExists(config *config) error {
 START:
+
 	dir, err := os.Stat(config.path)
 	if err != nil {
+
 		if os.IsNotExist(err) {
 			time.Sleep(watchPollDelay)
 			goto START
 		}
+
 		return err
 	}
 
@@ -148,6 +150,7 @@ func getYongestFilepathMatchedRegex(config *config) (string, error) {
 		}
 
 		if len(matchedCandidates) == 0 {
+			time.Sleep(watchPollDelay)
 			continue
 		}
 
@@ -209,8 +212,4 @@ func compareWhichYonger(file1 os.FileInfo, file2 os.FileInfo, c *config) os.File
 	}
 
 	return file1
-}
-
-func timespecToTime(ts syscall.Timespec) time.Time {
-	return time.Unix(int64(ts.Sec), int64(ts.Nsec))
 }
