@@ -17,7 +17,7 @@ func initiateWatcher(config *config) *watcher.Watcher {
 	// If SetMaxEvents is not set, the default is to send all events.
 	w.SetMaxEvents(1)
 
-	// Only notify rename and move events.
+	// Only notify rename, move, create, remove events.
 	w.FilterOps(watcher.Rename, watcher.Move, watcher.Create, watcher.Remove)
 
 	// Only files that match the regular expression during file listings
