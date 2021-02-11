@@ -48,7 +48,11 @@ func startWatcher(config *config, w *watcher.Watcher, t *tail.Tail, watchPollDel
 func eventsHandler(w *watcher.Watcher, t *tail.Tail, c *config) {
 	for {
 		select {
-		case <-w.Event:
+		case e := <-w.Event:
+			if isDebug {
+				log.Println(" Event:", c.messagePrefix, e)
+			}
+
 			err := t.Stop()
 			logFatalIfError(err)
 			c.readFromBeginning = true
@@ -58,7 +62,7 @@ func eventsHandler(w *watcher.Watcher, t *tail.Tail, c *config) {
 			return
 		case err := <-w.Error:
 			if err != watcher.ErrWatchedFileDeleted {
-				log.Fatalln(err)
+				log.Fatalln("Err:", c.messagePrefix, err)
 			}
 			err = t.Stop()
 			logFatalIfError(err)

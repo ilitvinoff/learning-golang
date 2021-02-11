@@ -39,6 +39,10 @@ Flag's description:
   -delay (ineger)
 
         Set watch poll delay value (milliseconds). If not set by the user or set to zero, then initialized with a default value of 100 milliseconds.
+
+  -debug (bool)
+        
+        Turn on debugging. If 'on', then logging events.
     	
   -n (Number of lines to standard output.)
   

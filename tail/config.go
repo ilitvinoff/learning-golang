@@ -18,7 +18,7 @@ type config struct {
 }
 
 func getDefaultConfig() *config {
-	return &config{&tail.Config{ReOpen: true, Follow: true /*Logger: tail.DiscardingLogger*/}, "", "", "", "", nDefaultValue, false, false}
+	return &config{&tail.Config{ReOpen: true, Follow: true, Logger: tail.DiscardingLogger}, "", "", "", "", nDefaultValue, false, false}
 }
 
 func (config *config) String() string {

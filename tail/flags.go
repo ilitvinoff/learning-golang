@@ -7,6 +7,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/hpcloud/tail"
 )
 
 const (
@@ -14,8 +16,11 @@ const (
 	watchPollDelayDefault = 100
 )
 
-//UserWatchPollDellay - value of the watch poll delay set by user
-var UserWatchPollDellay time.Duration
+//userWatchPollDellay - value of the watch poll delay set by user
+var userWatchPollDellay time.Duration
+
+//Debug turn on/off
+var isDebug bool
 
 type pathFlag []*config
 
@@ -164,6 +169,7 @@ func getConfigFromFlags() []*config {
 	flag.Var(&configFlag, "c", "Set's full config for each file to tail. All files specify in 1 string, using semicolon as delimiter. You need to define such parameters for each file:\n path - path to file or directory, depends on your will\n regex - regular expression for filename(may be empty string, if u set path - as path to file. empty string means: path;;prefix;n)\n prefix - prefix to printout before line from file\n n: output the last 'n' lines,may be empty string(Must be integer if present!!!), \nExample: tail -c \"foo/bar/file1;regexForFile1;prefix1;someinteger;foo/bar/file2;regexForFile2;prefix2;someinteger;...\"\nWarning!!!! Do not use semicolon at the end of argument line.\n")
 	flag.IntVar(&n, "n", nDefaultValue, "when 'n' is set, it defines to all files, where parameter 'n' has default value(default - 10) . 'n' represent amount of string to tail from.\nWarning!!!! Do not use semicolon at the end of argument line.\n")
 	flag.IntVar(&watchPollDelayInt, "delay", watchPollDelayDefault, "Set watch poll delay value (milliseconds). If not set by the user or set to zero, then initialized with a default value of 100 milliseconds.\n")
+	flag.BoolVar(&isDebug, "debug", false, "Turn on debugging. If 'on', then logging events.")
 	flag.Parse()
 
 	res = appendAllConfigsFromFlags(pathFlag, regexFlag, configFlag)
@@ -176,10 +182,16 @@ func getConfigFromFlags() []*config {
 		}
 	}
 
-	UserWatchPollDellay = time.Duration(watchPollDelayDefault) * time.Millisecond
+	if isDebug {
+		for _, el := range res {
+			el.hpcloudTailCfg.Logger = tail.DefaultLogger
+		}
+	}
+
+	userWatchPollDellay = time.Duration(watchPollDelayDefault) * time.Millisecond
 
 	if watchPollDelayInt != watchPollDelayDefault && watchPollDelayInt != 0 {
-		UserWatchPollDellay = time.Duration(watchPollDelayInt) * time.Millisecond
+		userWatchPollDellay = time.Duration(watchPollDelayInt) * time.Millisecond
 	}
 
 	return res
