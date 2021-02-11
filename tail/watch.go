@@ -3,12 +3,13 @@ package main
 import (
 	"log"
 	"regexp"
+	"time"
 
 	"github.com/hpcloud/tail"
 	"github.com/radovskyb/watcher"
 )
 
-func initiateWatcher(config *config) *watcher.Watcher {
+func initWatcher(config *config) *watcher.Watcher {
 	w := watcher.New()
 
 	// SetMaxEvents to 1 to allow at most 1 event's to be received
@@ -34,11 +35,11 @@ func initiateWatcher(config *config) *watcher.Watcher {
 	return w
 }
 
-func startWatcher(config *config, w *watcher.Watcher, t *tail.Tail) {
+func startWatcher(config *config, w *watcher.Watcher, t *tail.Tail, watchPollDelay time.Duration) {
 
 	go eventsHandler(w, t, config)
 
-	// Start the watching process - it'll check for changes every 100ms.
+	// Start the watching process - it'll check for changes periodically (default 100ms).
 	if err := w.Start(watchPollDelay); err != nil {
 		log.Fatalln(err)
 	}

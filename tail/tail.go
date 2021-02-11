@@ -17,61 +17,63 @@ import (
 )
 
 const (
-	watchPollDelay = 100 * time.Millisecond
+	fileReadBufferSize = 1023
 )
 
-type myTailConfig struct {
-	configArr []*config
-	wg        sync.WaitGroup
+//TailState ...
+type TailState struct {
+	configArr      []*config
+	watchPollDelay time.Duration
+	wg             sync.WaitGroup
 }
 
 //ConcurentTail ...
-func ConcurentTail(t *myTailConfig) {
-	for _, cfg := range t.configArr {
-		t.wg.Add(1)
-		go masterTail(cfg, t)
+func ConcurentTail(tailState *TailState) {
+	for _, cfg := range tailState.configArr {
+		tailState.wg.Add(1)
+		go masterTail(cfg, tailState.watchPollDelay, &tailState.wg)
 	}
 
-	t.wg.Wait()
+	tailState.wg.Wait()
 }
 
-func masterTail(config *config, t *myTailConfig) {
-	defer t.wg.Done()
-	TailF(config)
+func masterTail(config *config, watchPollDelay time.Duration, wg *sync.WaitGroup) {
+	defer wg.Done()
+	TailF(config, watchPollDelay)
 
 }
 
 //TailF ...
-func TailF(config *config) {
+func TailF(config *config, watchPollDelay time.Duration) {
 	for {
-		err := waitForPathExists(config)
+		err := waitForPathExists(config, watchPollDelay)
 		logFatalIfError(err)
 
 		filepath := config.path
 
 		if !config.isFilepath {
-			filepath, err = getYongestFilepathMatchedRegex(config)
+			filepath, err = getYongestFilepathMatchedRegex(config, watchPollDelay)
 			logFatalIfError(err)
 		}
 
 		setCursorPos(config, filepath)
-		w := initiateWatcher(config)
-		t := getTailer(filepath, *config.tailConfig)
 
-		go startWatcher(config, w, t)
+		w := initWatcher(config)
+		tail := getTailer(filepath, *config.hpcloudTailCfg)
 
-		for line := range t.Lines {
-			if config.isFilepath {
-			}
+		go startWatcher(config, w, tail, watchPollDelay)
+
+		for line := range tail.Lines {
 			fmt.Println(config.messagePrefix, line.Text)
 		}
-		t.Cleanup()
+		tail.Cleanup()
 	}
 }
 
-func setCursorPos(c *config, filepath string) {
-	if c.readFromBeginning {
-		c.tailConfig.Location = &tail.SeekInfo{Offset: 0, Whence: 0}
+//setCursorPos - set cursor position in file to tail from
+func setCursorPos(cfg *config, filepath string) {
+	if cfg.readFromBeginning {
+		cfg.hpcloudTailCfg.Location = &tail.SeekInfo{Offset: 0, Whence: 0}
 		return
 	}
 
@@ -84,26 +86,42 @@ func setCursorPos(c *config, filepath string) {
 
 	filesize := stats.Size()
 	lineCounter := 0
-	var cursor int64
 
-	for cursor = 0; math.Abs(float64(cursor)) < float64(filesize) && lineCounter < c.n; {
-		cursor--
-		file.Seek(cursor, io.SeekEnd)
+	var currentPosition, positionToReadFrom int64
 
-		char := make([]byte, 1)
-		file.Read(char)
-
-		if cursor != -1 && char[0] == '\n' { // stop if we find a line
-			lineCounter++
-		}
-
+	if filesize > fileReadBufferSize {
+		positionToReadFrom = filesize - fileReadBufferSize
 	}
 
-	c.tailConfig.Location = &tail.SeekInfo{Offset: cursor + 1, Whence: 2}
+	for currentPosition = -1; math.Abs(float64(currentPosition)) < float64(filesize)-1 && lineCounter < cfg.n; {
+		_, err := file.Seek(positionToReadFrom, io.SeekStart)
+		logFatalIfError(err)
+
+		char := make([]byte, fileReadBufferSize)
+
+		n, err := file.Read(char)
+		if err != nil && err != io.EOF {
+			log.Fatal(err.Error())
+		}
+
+		for i := n - 1; i > 0 && lineCounter < cfg.n; i-- {
+			if currentPosition != -1 && char[i] == '\n' { // stop if we find a line
+				lineCounter++
+			}
+			currentPosition--
+		}
+
+		positionToReadFrom = positionToReadFrom - filesize
+		if positionToReadFrom < 0 {
+			positionToReadFrom = 0
+		}
+	}
+
+	cfg.hpcloudTailCfg.Location = &tail.SeekInfo{Offset: currentPosition, Whence: 2}
 }
 
-func getTailer(path string, tailConfig tail.Config) *tail.Tail {
-	t, err := tail.TailFile(path, tailConfig)
+func getTailer(path string, hpcloudTailCfg tail.Config) *tail.Tail {
+	t, err := tail.TailFile(path, hpcloudTailCfg)
 	logFatalIfError(err)
 	return t
 }
@@ -114,20 +132,24 @@ func logFatalIfError(err error) {
 	}
 }
 
-func waitForPathExists(config *config) error {
-START:
+func waitForPathExists(config *config, watchPollDelay time.Duration) error {
+	var dir os.FileInfo
+	var err error
 
-	dir, err := os.Stat(config.path)
-	if err != nil {
+	for {
+		dir, err = os.Stat(config.path)
 
-		if os.IsNotExist(err) {
-			time.Sleep(watchPollDelay)
-			goto START
+		if err != nil {
+
+			if os.IsNotExist(err) {
+				time.Sleep(watchPollDelay)
+				continue
+			}
+
+			return err
 		}
-
-		return err
+		break
 	}
-
 	if !config.isFilepath && !dir.IsDir() {
 		return fmt.Errorf("given path is not directory! path: %v", config.path)
 	}
@@ -137,7 +159,7 @@ START:
 	return nil
 }
 
-func getYongestFilepathMatchedRegex(config *config) (string, error) {
+func getYongestFilepathMatchedRegex(config *config, watchPollDelay time.Duration) (string, error) {
 	for {
 		candidates, err := getFileListFromDir(config.path)
 		if err != nil {
