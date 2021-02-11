@@ -35,6 +35,10 @@ Flag's description:
 
     	Example: ./tail -c "foo/bar/file1;regexForFile1;prefix1;someinteger;foo/bar/file2;regexForFile2;prefix2;someinteger..."
     	Warning!!!! Do not use semicolon at the end of argument line.
+
+  -delay (ineger)
+
+        Set watch poll delay value (milliseconds). If not set by the user or set to zero, then initialized with a default value of 100 milliseconds.
     	
   -n (Number of lines to standard output.)
   
