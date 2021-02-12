@@ -31,11 +31,22 @@ func initWatcher(config *config) *watcher.Watcher {
 	return w
 }
 
+<<<<<<< HEAD
 func startWatcher(config *config, filepath string, w *watcher.Watcher, t *tail.Tail, watchPollDelay time.Duration) {
 
 	// Start the watching process - it'll check for changes periodically (default 100ms).
 	err := w.Start(watchPollDelay)
 	logFatalIfError(err)
+=======
+func startWatcher(config *config, w *watcher.Watcher, t *tail.Tail, watchPollDelay time.Duration) {
+
+	go eventsHandler(w, t, config)
+
+	// Start the watching process - it'll check for changes periodically (default 100ms).
+	if err := w.Start(watchPollDelay); err != nil {
+		log.Fatalln(err)
+	}
+>>>>>>> a3fab59cdabc7435959b3fce756f4251b40be15b
 }
 
 func eventsHandler(filepath string, w *watcher.Watcher, tail *tail.Tail, cfg *config) {
@@ -46,6 +57,7 @@ func eventsHandler(filepath string, w *watcher.Watcher, tail *tail.Tail, cfg *co
 		//time.Sleep(userWatchPollDellay)
 
 		select {
+<<<<<<< HEAD
 
 		case e := <-w.Event:
 
@@ -62,6 +74,17 @@ func eventsHandler(filepath string, w *watcher.Watcher, tail *tail.Tail, cfg *co
 				ifDebugPrintMsg(fmt.Sprintln(" \nEVENT:", cfg.messagePrefix, "{", "file:", e.Path, "; event:", e.Op.String(), "}"))
 				stopWatcher(tail, cfg, w)
 			}
+=======
+		case e := <-w.Event:
+			if isDebug {
+				log.Println(" Event:", c.messagePrefix, e)
+			}
+
+			err := t.Stop()
+			logFatalIfError(err)
+			c.readFromBeginning = true
+			w.Close()
+>>>>>>> a3fab59cdabc7435959b3fce756f4251b40be15b
 
 		case _, _ = <-w.Closed:
 			return
@@ -71,7 +94,11 @@ func eventsHandler(filepath string, w *watcher.Watcher, tail *tail.Tail, cfg *co
 			ifDebugPrintMsg(fmt.Sprintln(" \nERR:", cfg.messagePrefix, "path:", cfg.path, "; error:", err.Error()))
 
 			if err != watcher.ErrWatchedFileDeleted {
+<<<<<<< HEAD
 				log.Fatalln("ERR:", cfg.messagePrefix, err)
+=======
+				log.Fatalln("Err:", c.messagePrefix, err)
+>>>>>>> a3fab59cdabc7435959b3fce756f4251b40be15b
 			}
 
 			stopWatcher(tail, cfg, w)
