@@ -6,11 +6,11 @@ import (
 )
 
 func main() {
-	
-	tailConfig := &myTailConfig{getConfigFromFlags(), sync.WaitGroup{}}
-	if len(tailConfig.configArr) < 1 {
+	tailState := &TailState{getConfigFromFlags(), userWatchPollDellay, sync.WaitGroup{}}
+
+	if len(tailState.configArr) < 1 {
 		fmt.Println("Use flags to tweak the config you want. See help message. Enter: \n./tail -h")
 	}
-	ConcurentTail(tailConfig)
+	ConcurentTail(tailState)
 
 }
