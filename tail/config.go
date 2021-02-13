@@ -24,9 +24,13 @@ func getDefaultConfig() *config {
 func (config *config) String() string {
 	res := ""
 	res = fmt.Sprintf("%vpath: %v;\nregexp: %v;\nuserPrefix: %v;\nn: %v;\n", res, config.path, config.regex, config.userPrefix, config.n)
+	res = fmt.Sprintf("%vmessage prefix: %v\n", res, config.messagePrefix)
+	res = fmt.Sprintf("%vlines amount to start read with: %v\n", res, config.n)
+	res = fmt.Sprintf("%visFilepath: %v\n", res, config.isFilepath)
+	res = fmt.Sprintf("%vread from the beginning of the file: %v\n", res, config.readFromBeginning)
 	res = fmt.Sprintf("%vLocation: %v\n", res, config.hpcloudTailCfg.Location)
 	res = fmt.Sprintf("%vReopen: %v\n", res, config.hpcloudTailCfg.ReOpen)
 	res = fmt.Sprintf("%vFollow: %v\n", res, config.hpcloudTailCfg.Follow)
-	res = fmt.Sprint(res, "-------------------------------------------------------\n")
+	res = fmt.Sprintf("%vhpcloud Logger: %v\n", res, config.hpcloudTailCfg.Logger)
 	return res
 }

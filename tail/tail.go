@@ -29,6 +29,9 @@ type TailState struct {
 
 //ConcurentTail ...
 func ConcurentTail(tailState *TailState) {
+	if isDebug {
+		fmt.Print("-------------------\nDEBUG MODE!!!\n-------------------\n")
+	}
 	for _, cfg := range tailState.configArr {
 		tailState.wg.Add(1)
 		go masterTail(cfg, tailState.watchPollDelay, &tailState.wg)
@@ -45,6 +48,13 @@ func masterTail(config *config, watchPollDelay time.Duration, wg *sync.WaitGroup
 
 //TailF ...
 func TailF(config *config, watchPollDelay time.Duration) {
+	if isDebug {
+		fmt.Println("--------------------------")
+		log.Println("Tail config:")
+		fmt.Println(config)
+		fmt.Println("--------------------------")
+	}
+
 	for {
 		err := waitForPathExists(config, watchPollDelay)
 		logFatalIfError(err)
@@ -61,7 +71,7 @@ func TailF(config *config, watchPollDelay time.Duration) {
 		w := initWatcher(config)
 		tail := getTailer(filepath, *config.hpcloudTailCfg)
 
-		go startWatcher(config, w, tail, watchPollDelay)
+		go startWatcher(config, filepath, w, tail, watchPollDelay)
 
 		for line := range tail.Lines {
 			fmt.Println(config.messagePrefix, line.Text)
@@ -87,13 +97,13 @@ func setCursorPos(cfg *config, filepath string) {
 	filesize := stats.Size()
 	lineCounter := 0
 
-	var currentPosition, positionToReadFrom int64
+	var cursorPosition, positionToReadFrom int64
 
 	if filesize > fileReadBufferSize {
 		positionToReadFrom = filesize - fileReadBufferSize
 	}
 
-	for currentPosition = -1; math.Abs(float64(currentPosition)) < float64(filesize)-1 && lineCounter < cfg.n; {
+	for cursorPosition = -1; math.Abs(float64(cursorPosition)) < float64(filesize)-1 && lineCounter < cfg.n; {
 		_, err := file.Seek(positionToReadFrom, io.SeekStart)
 		logFatalIfError(err)
 
@@ -105,10 +115,10 @@ func setCursorPos(cfg *config, filepath string) {
 		}
 
 		for i := n - 1; i > 0 && lineCounter < cfg.n; i-- {
-			if currentPosition != -1 && char[i] == '\n' { // stop if we find a line
+			if cursorPosition != -1 && char[i] == '\n' { // stop if we find a line
 				lineCounter++
 			}
-			currentPosition--
+			cursorPosition--
 		}
 
 		positionToReadFrom = positionToReadFrom - filesize
@@ -117,7 +127,12 @@ func setCursorPos(cfg *config, filepath string) {
 		}
 	}
 
-	cfg.hpcloudTailCfg.Location = &tail.SeekInfo{Offset: currentPosition, Whence: 2}
+	//when file is empty
+	if cursorPosition == -1 {
+		cursorPosition = 0
+	}
+
+	cfg.hpcloudTailCfg.Location = &tail.SeekInfo{Offset: cursorPosition, Whence: 2}
 }
 
 func getTailer(path string, hpcloudTailCfg tail.Config) *tail.Tail {
