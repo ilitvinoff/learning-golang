@@ -14,12 +14,6 @@ import (
 func initWatcher(config *config) *watcher.Watcher {
 	w := watcher.New()
 
-	// SetMaxEvents to 1 to allow at most 1 event's to be received
-	// on the Event channel per watching cycle.
-	//
-	// If SetMaxEvents is not set, the default is to send all events.
-	w.SetMaxEvents(1)
-
 	// Only notify rename, move, create, remove events.
 	w.FilterOps(watcher.Rename, watcher.Move, watcher.Create, watcher.Remove, watcher.Write)
 
@@ -39,12 +33,9 @@ func initWatcher(config *config) *watcher.Watcher {
 
 func startWatcher(config *config, filepath string, w *watcher.Watcher, t *tail.Tail, watchPollDelay time.Duration) {
 
-	go eventsHandler(filepath, w, t, config)
-
 	// Start the watching process - it'll check for changes periodically (default 100ms).
-	if err := w.Start(watchPollDelay); err != nil {
-		log.Fatalln(err)
-	}
+	err := w.Start(watchPollDelay)
+	logFatalIfError(err)
 }
 
 func eventsHandler(filepath string, w *watcher.Watcher, tail *tail.Tail, cfg *config) {
@@ -52,7 +43,7 @@ func eventsHandler(filepath string, w *watcher.Watcher, tail *tail.Tail, cfg *co
 	var err error
 
 	for {
-		time.Sleep(userWatchPollDellay / 2)
+		//time.Sleep(userWatchPollDellay)
 
 		select {
 
@@ -62,16 +53,13 @@ func eventsHandler(filepath string, w *watcher.Watcher, tail *tail.Tail, cfg *co
 				previousSize, err = fileSizeController(filepath, previousSize)
 
 				if err != nil {
+					ifDebugPrintMsg(fmt.Sprintln(" \nEVENT:", cfg.messagePrefix, "{", "file:", e.Path, "; event:", e.Op.String(), "}"))
 					stopWatcher(tail, cfg, w)
 				}
 
 			} else {
 
-				if isDebug {
-					fmt.Println("--------------------------")
-					log.Println(" \nEVENT:", cfg.messagePrefix, "{", "file:", e.Path, "; event:", e.Op.String(), "}")
-					fmt.Println("--------------------------")
-				}
+				ifDebugPrintMsg(fmt.Sprintln(" \nEVENT:", cfg.messagePrefix, "{", "file:", e.Path, "; event:", e.Op.String(), "}"))
 				stopWatcher(tail, cfg, w)
 			}
 
@@ -79,11 +67,8 @@ func eventsHandler(filepath string, w *watcher.Watcher, tail *tail.Tail, cfg *co
 			return
 
 		case err := <-w.Error:
-			if isDebug {
-				fmt.Println("--------------------------")
-				log.Println(" ERR:", cfg.messagePrefix, "path:", cfg.path, "; error:", err.Error())
-				fmt.Println("--------------------------")
-			}
+
+			ifDebugPrintMsg(fmt.Sprintln(" \nERR:", cfg.messagePrefix, "path:", cfg.path, "; error:", err.Error()))
 
 			if err != watcher.ErrWatchedFileDeleted {
 				log.Fatalln("ERR:", cfg.messagePrefix, err)
@@ -102,13 +87,9 @@ func getFileSize(filepath string) int64 {
 
 func fileSizeController(path string, previousSize int64) (int64, error) {
 	currentSize := getFileSize(path)
-	if currentSize-previousSize < 0 {
-		if isDebug {
-			fmt.Println("--------------------------")
-			log.Println("Current filesize less than previous filesize.", "{", "path:", path, "; previous size:", previousSize, "current size:", currentSize, "}")
-			fmt.Println("--------------------------")
-		}
 
+	if currentSize-previousSize < 0 {
+		ifDebugPrintMsg(fmt.Sprintln("\nCurrent filesize less than previous filesize.", "{", "path:", path, "; previous size:", previousSize, "current size:", currentSize, "}"))
 		return 0, fmt.Errorf("current filesize less than previous filesize")
 	}
 
@@ -116,8 +97,18 @@ func fileSizeController(path string, previousSize int64) (int64, error) {
 }
 
 func stopWatcher(t *tail.Tail, c *config, w *watcher.Watcher) {
+	t.Cleanup()
 	err := t.Stop()
 	logFatalIfError(err)
-	c.readFromBeginning = true
+	//To start read from the beggining of the file - set cursor position to start.
+	c.hpcloudTailCfg.Location = &tail.SeekInfo{Offset: 0, Whence: 0}
 	w.Close()
+}
+
+func ifDebugPrintMsg(msg string) {
+	if isDebug {
+		fmt.Println("--------------------------")
+		log.Println(msg)
+		fmt.Println("--------------------------")
+	}
 }

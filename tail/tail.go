@@ -48,12 +48,8 @@ func masterTail(config *config, watchPollDelay time.Duration, wg *sync.WaitGroup
 
 //TailF ...
 func TailF(config *config, watchPollDelay time.Duration) {
-	if isDebug {
-		fmt.Println("--------------------------")
-		log.Println("Tail config:")
-		fmt.Println(config)
-		fmt.Println("--------------------------")
-	}
+
+	ifDebugPrintMsg(fmt.Sprintf("\nTail config:\n%v\nWatch poll delay time: %v\n", config, watchPollDelay))
 
 	for {
 		err := waitForPathExists(config, watchPollDelay)
@@ -69,21 +65,23 @@ func TailF(config *config, watchPollDelay time.Duration) {
 		setCursorPos(config, filepath)
 
 		w := initWatcher(config)
-		tail := getTailer(filepath, *config.hpcloudTailCfg)
+		tail := getTailer(filepath, config)
+		ifDebugPrintMsg(fmt.Sprintf("\nNew tail was created. Config:\n%v", config))
 
 		go startWatcher(config, filepath, w, tail, watchPollDelay)
+		go eventsHandler(filepath, w, tail, config)
 
 		for line := range tail.Lines {
 			fmt.Println(config.messagePrefix, line.Text)
 		}
-		tail.Cleanup()
 	}
 }
 
 //setCursorPos - set cursor position in file to tail from
 func setCursorPos(cfg *config, filepath string) {
-	if cfg.readFromBeginning {
-		cfg.hpcloudTailCfg.Location = &tail.SeekInfo{Offset: 0, Whence: 0}
+	//if tail-process was stopped and location in the file to read from was changed to start of the file
+	//we have no need to calculate cursor position
+	if cfg.hpcloudTailCfg.Location.Whence == 0 {
 		return
 	}
 
@@ -129,14 +127,15 @@ func setCursorPos(cfg *config, filepath string) {
 
 	//when file is empty
 	if cursorPosition == -1 {
-		cursorPosition = 0
+		cfg.hpcloudTailCfg.Location = &tail.SeekInfo{Offset: 0, Whence: 0}
+		return
 	}
 
 	cfg.hpcloudTailCfg.Location = &tail.SeekInfo{Offset: cursorPosition, Whence: 2}
 }
 
-func getTailer(path string, hpcloudTailCfg tail.Config) *tail.Tail {
-	t, err := tail.TailFile(path, hpcloudTailCfg)
+func getTailer(path string, config *config) *tail.Tail {
+	t, err := tail.TailFile(path, *config.hpcloudTailCfg)
 	logFatalIfError(err)
 	return t
 }
