@@ -32,6 +32,7 @@ func initWatcher(config *config) *watcher.Watcher {
 }
 
 func startWatcher(config *config, filepath string, w *watcher.Watcher, t *tail.Tail, watchPollDelay time.Duration) {
+	ifDebugPrintMsg("New watcher created")
 
 	// Start the watching process - it'll check for changes periodically (default 100ms).
 	err := w.Start(watchPollDelay)
