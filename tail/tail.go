@@ -17,7 +17,7 @@ import (
 )
 
 const (
-	fileReadBufferSize = 1023
+	fileReadBufferSize = 1024
 )
 
 //TailState ...
@@ -58,7 +58,9 @@ func TailF(config *config, watchPollDelay time.Duration) {
 		filepath := config.path
 
 		if !config.isFilepath {
+			ifDebugPrintMsg(fmt.Sprintf("Searching regex '%v' matches in: %v;", config.regex, config.path))
 			filepath, err = getYongestFilepathMatchedRegex(config, watchPollDelay)
+			ifDebugPrintMsg(fmt.Sprintf("Matched candidate found: %v; regex: %v;", filepath, config.regex))
 			logFatalIfError(err)
 		}
 
@@ -150,9 +152,11 @@ func waitForPathExists(config *config, watchPollDelay time.Duration) error {
 	var dir os.FileInfo
 	var err error
 
-	for {
-		dir, err = os.Stat(config.path)
+	ifDebugPrintMsg("Wait for path is exist")
 
+	for {
+
+		dir, err = os.Stat(config.path)
 		if err != nil {
 
 			if os.IsNotExist(err) {
@@ -169,7 +173,7 @@ func waitForPathExists(config *config, watchPollDelay time.Duration) error {
 	}
 
 	config.messagePrefix = config.userPrefix
-
+	ifDebugPrintMsg(fmt.Sprint("Path is exist. Msg prefix: ", config.messagePrefix, " Path: ", config.path))
 	return nil
 }
 
@@ -215,6 +219,7 @@ func getFileListFromDir(path string) ([]os.FileInfo, error) {
 		}
 		res = append(res, file)
 	}
+
 	return res, nil
 }
 
@@ -230,6 +235,7 @@ func getMatchedRegexFilesFromList(files []os.FileInfo, regex string) ([]os.FileI
 			matchedCandidates = append(matchedCandidates, file)
 		}
 	}
+
 	return matchedCandidates, nil
 }
 

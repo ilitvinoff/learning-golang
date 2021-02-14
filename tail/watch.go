@@ -44,7 +44,6 @@ func eventsHandler(filepath string, w *watcher.Watcher, tail *tail.Tail, cfg *co
 	var err error
 
 	for {
-		//time.Sleep(userWatchPollDellay)
 
 		select {
 
@@ -67,7 +66,7 @@ func eventsHandler(filepath string, w *watcher.Watcher, tail *tail.Tail, cfg *co
 		case _, _ = <-w.Closed:
 			return
 
-		case err := <-w.Error:
+		case err = <-w.Error:
 
 			ifDebugPrintMsg(fmt.Sprintln(" \nERR:", cfg.messagePrefix, "path:", cfg.path, "; error:", err.Error()))
 
@@ -81,7 +80,11 @@ func eventsHandler(filepath string, w *watcher.Watcher, tail *tail.Tail, cfg *co
 }
 
 func getFileSize(filepath string) int64 {
-	stats, err := os.Stat(filepath)
+	var stats os.FileInfo
+	var err error
+	if stats, err = os.Stat(filepath); os.IsNotExist(err) {
+		return 0
+	}
 	logFatalIfError(err)
 	return stats.Size()
 }
