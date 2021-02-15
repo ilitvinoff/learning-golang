@@ -11,7 +11,7 @@ import (
 	"github.com/radovskyb/watcher"
 )
 
-func initWatcher(config *config) *watcher.Watcher {
+func initWatch(config *config) *watcher.Watcher {
 	w := watcher.New()
 
 	// Only notify rename, move, create, remove events.
@@ -31,7 +31,7 @@ func initWatcher(config *config) *watcher.Watcher {
 	return w
 }
 
-func startWatcher(config *config, filepath string, w *watcher.Watcher, t *tail.Tail, watchPollDelay time.Duration) {
+func stopWatch(config *config, filepath string, w *watcher.Watcher, t *tail.Tail, watchPollDelay time.Duration) {
 	ifDebugPrintMsg("New watcher created")
 
 	// Start the watching process - it'll check for changes periodically (default 100ms).
@@ -39,7 +39,7 @@ func startWatcher(config *config, filepath string, w *watcher.Watcher, t *tail.T
 	logFatalIfError(err)
 }
 
-func eventsHandler(filepath string, w *watcher.Watcher, tail *tail.Tail, cfg *config) {
+func hadleEvents(filepath string, w *watcher.Watcher, tail *tail.Tail, cfg *config) {
 	previousSize := getFileSize(filepath)
 	var err error
 

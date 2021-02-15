@@ -66,12 +66,12 @@ func TailF(config *config, watchPollDelay time.Duration) {
 
 		setCursorPos(config, filepath)
 
-		w := initWatcher(config)
+		w := initWatch(config)
 		tail := getTailer(filepath, config)
 		ifDebugPrintMsg(fmt.Sprintf("\nNew tail was created. Config:\n%v", config))
 
-		go startWatcher(config, filepath, w, tail, watchPollDelay)
-		go eventsHandler(filepath, w, tail, config)
+		go stopWatch(config, filepath, w, tail, watchPollDelay)
+		go hadleEvents(filepath, w, tail, config)
 
 		for line := range tail.Lines {
 			fmt.Println(config.messagePrefix, line.Text)
